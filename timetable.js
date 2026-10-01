@@ -41,19 +41,17 @@ function buildDayField(sessions, weekMonday, day, type) {
 }
 
 function buildPublicDayValue(sessions, weekMonday, day) {
-  const shifts = sessions.filter(s => s.day === day && s.type === "Shift" && s.host).sort((a, b) => a.hour - b.hour);
-  const trainings = sessions.filter(s => s.day === day && s.type === "Training" && s.host).sort((a, b) => a.hour - b.hour);
-  if (shifts.length === 0 && trainings.length === 0) return "—";
-  const lines = [];
-  for (const s of shifts) {
+  const list = [
+    ...sessions.filter(s => s.day === day && s.type === "Shift" && s.host).sort((a, b) => a.hour - b.hour).map(s => ({ ...s, emoji: "🔶" })),
+    ...sessions.filter(s => s.day === day && s.type === "Training" && s.host).sort((a, b) => a.hour - b.hour).map(s => ({ ...s, emoji: "🔷" }))
+  ];
+  if (list.length === 0) return "—";
+  return list.map(s => {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    lines.push(`🔶 <t:${ts}:t> · <t:${ts}:R>\nHost: ${s.host ? `<@${s.host}>` : "/"} · Co: ${s.cohost ? `<@${s.cohost}>` : "/"}`);
-  }
-  for (const s of trainings) {
-    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    lines.push(`🔷 <t:${ts}:t> · <t:${ts}:R>\nHost: ${s.host ? `<@${s.host}>` : "/"} · Co: ${s.cohost ? `<@${s.cohost}>` : "/"}`);
-  }
-  return lines.join("\n");
+    const host = s.host ? `<@${s.host}>` : "/";
+    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
+    return `${s.emoji} <t:${ts}:t> · <t:${ts}:R> · ${host} & ${cohost}`;
+  }).join("\n");
 }
 
 function buildTimetableEmbed(sessions, weekMonday) {
@@ -62,23 +60,17 @@ function buildTimetableEmbed(sessions, weekMonday) {
   const wsTs = Math.floor(weekMonday.getTime() / 1000);
   const weTs = Math.floor(weekEnd.getTime() / 1000);
 
-  const fields = [];
-  for (let i = 0; i < DAYS.length; i += 2) {
-    const d1 = DAYS[i], d2 = DAYS[i + 1];
-    const ts1 = Math.floor(getDateForWeekday(weekMonday, d1).getTime() / 1000);
-    fields.push({ name: `${d1} — <t:${ts1}:d>`, value: buildPublicDayValue(sessions, weekMonday, d1), inline: true });
-    if (d2) {
-      const ts2 = Math.floor(getDateForWeekday(weekMonday, d2).getTime() / 1000);
-      fields.push({ name: `${d2} — <t:${ts2}:d>`, value: buildPublicDayValue(sessions, weekMonday, d2), inline: true });
-    }
-  }
+  const fields = DAYS.map(day => {
+    const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
+    return { name: `${day} — <t:${dayTs}:d>`, value: buildPublicDayValue(sessions, weekMonday, day), inline: false };
+  });
 
   return {
     title: `📅 Weekly Timetable — Union™`,
     description: `<t:${wsTs}:d> – <t:${weTs}:d>`,
     color: 0xffa500,
     fields,
-    image: { url: "https://media.discordapp.net/attachments/1553849844550869164/1555229752963502240/ChatGPT_Image_Jun_29__2026__09_29_21_PM-removebg-preview.png" },
+    thumbnail: { url: "https://media.discordapp.net/attachments/1553849844550869164/1555229752963502240/ChatGPT_Image_Jun_29__2026__09_29_21_PM-removebg-preview.png" },
     footer: { text: "Union™ · Updated automatically" }
   };
 }
