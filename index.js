@@ -30,6 +30,22 @@ async function apiReply(interaction, data) {
   });
 }
 
+async function apiDefer(interaction) {
+  await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bot ${BOT_TOKEN}` },
+    body: JSON.stringify({ type: 5, data: { flags: 64 } })
+  });
+}
+
+async function apiFollowup(interaction, data) {
+  await fetch(`https://discord.com/api/v10/webhooks/${interaction.applicationID}/${interaction.token}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bot ${BOT_TOKEN}` },
+    body: JSON.stringify({ ...data, flags: 64 })
+  });
+}
+
 async function apiModal(interaction, modal) {
   await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, {
     method: "POST",
@@ -300,117 +316,95 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.type === 3 && interaction.data.componentType === 2) {
       const id = interaction.data.customID;
 
-      // Setup page nav
-      if (id.startsWith("setup_page_")) {
-        const page = parseInt(id.split("_")[2]);
-        const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
-        if (msgId) await updateSetupPanel(interaction.channel, msgId, page);
-        await apiReply(interaction, { content: "\u200b" });
-        return;
-      }
-
-      // Setup edit button
-      if (id.startsWith("setup_edit_")) {
-        const key = id.replace("setup_edit_", "");
+      // Modals must be opened BEFORE defer — handle them first without deferring
+      if (id.startsWith("setup_edit_") || id.startsWith("setup_announce_simple_") || id.startsWith("setup_announce_json_")) {
+        const key = id.startsWith("setup_edit_") ? id.replace("setup_edit_", "")
+          : id.startsWith("setup_announce_simple_") ? id.replace("setup_announce_simple_", "")
+          : id.replace("setup_announce_json_", "");
         const meta = getConfigMeta(key);
-        if (!meta) return;
 
-        // Announcement keys get a mode selector first
-        if (isAnnounceKey(key)) {
-          await apiReply(interaction, {
-            content: `**${meta.label}**\nChoose how you want to edit this announcement:`,
-            components: buildAnnounceModeComponents(key)
+        if (id.startsWith("setup_edit_")) {
+          if (!meta) return;
+          if (isAnnounceKey(key)) {
+            await apiReply(interaction, {
+              content: `**${meta.label}**\nChoose how you want to edit this announcement:`,
+              components: buildAnnounceModeComponents(key)
+            });
+            return;
+          }
+          await apiModal(interaction, {
+            custom_id: `setup_modal_${key}`,
+            title: `Edit: ${meta.label.slice(0, 45)}`,
+            components: [{ type: 1, components: [{ type: 4, custom_id: "value", label: meta.label.slice(0, 45), style: 1, placeholder: meta.desc.slice(0, 100), required: false, value: cfg[key] ?? "" }] }]
           });
           return;
         }
 
-        await apiModal(interaction, {
-          custom_id: `setup_modal_${key}`,
-          title: `Edit: ${meta.label.slice(0, 45)}`,
-          components: [{
-            type: 1,
-            components: [{
-              type: 4, custom_id: "value", label: meta.label.slice(0, 45),
-              style: 1, placeholder: meta.desc.slice(0, 100), required: false, value: cfg[key] ?? ""
-            }]
-          }]
-        });
-        return;
+        if (id.startsWith("setup_announce_simple_")) {
+          const existing = parseAnnounceValue(cfg[key]);
+          await apiModal(interaction, {
+            custom_id: `setup_announce_simple_modal_${key}`,
+            title: "Edit Announcement (Simple)",
+            components: [
+              { type: 1, components: [{ type: 4, custom_id: "title", label: "Embed Title", style: 1, required: false, value: existing?.title ?? "" }] },
+              { type: 1, components: [{ type: 4, custom_id: "description", label: "Description (supports **bold**, *italic*)", style: 2, required: false, value: existing?.description ?? "" }] },
+              { type: 1, components: [{ type: 4, custom_id: "color", label: "Color (hex, e.g. ffa500)", style: 1, required: false, placeholder: "ffa500", value: existing?.color ? existing.color.toString(16) : "" }] }
+            ]
+          });
+          return;
+        }
+
+        if (id.startsWith("setup_announce_json_")) {
+          await apiModal(interaction, {
+            custom_id: `setup_announce_json_modal_${key}`,
+            title: "Edit Announcement (JSON)",
+            components: [{ type: 1, components: [{ type: 4, custom_id: "json", label: "Discord Embed JSON (from discohook.org)", style: 2, required: false, placeholder: '{"title":"...","description":"...","color":16753920}', value: cfg[key] ?? "" }] }]
+          });
+          return;
+        }
       }
 
-      // Announcement mode: Simple
-      if (id.startsWith("setup_announce_simple_")) {
-        const key = id.replace("setup_announce_simple_", "");
-        const existing = parseAnnounceValue(cfg[key]);
-        await apiModal(interaction, {
-          custom_id: `setup_announce_simple_modal_${key}`,
-          title: "Edit Announcement (Simple)",
-          components: [
-            { type: 1, components: [{ type: 4, custom_id: "title", label: "Embed Title", style: 1, required: false, value: existing?.title ?? "" }] },
-            { type: 1, components: [{ type: 4, custom_id: "description", label: "Description (supports **bold**, *italic*)", style: 2, required: false, value: existing?.description ?? "" }] },
-            { type: 1, components: [{ type: 4, custom_id: "color", label: "Color (hex, e.g. ffa500)", style: 1, required: false, placeholder: "ffa500", value: existing?.color ? existing.color.toString(16) : "" }] }
-          ]
-        });
-        return;
-      }
-
-      // Announcement mode: JSON
-      if (id.startsWith("setup_announce_json_")) {
-        const key = id.replace("setup_announce_json_", "");
-        const existing = cfg[key] ?? "";
-        await apiModal(interaction, {
-          custom_id: `setup_announce_json_modal_${key}`,
-          title: "Edit Announcement (JSON)",
-          components: [{
-            type: 1,
-            components: [{
-              type: 4, custom_id: "json", label: "Discord Embed JSON (from discohook.org)",
-              style: 2, required: false, placeholder: '{"title":"...","description":"...","color":16753920}',
-              value: existing
-            }]
-          }]
-        });
-        return;
-      }
-
-      // Management: Shift or Training button — ask Host or Co-Host
       if (id === "mgmt_type_Shift" || id === "mgmt_type_Training") {
         const type = id === "mgmt_type_Shift" ? "Shift" : "Training";
         await apiReply(interaction, {
           content: `**${type}** — Select your role:`,
-          components: [{
-            type: 1,
-            components: [
-              { type: 2, label: "Host", style: 3, customID: `mgmt_role_host_${type}` },
-              { type: 2, label: "Co-Host", style: 1, customID: `mgmt_role_cohost_${type}` }
-            ]
-          }]
+          components: [{ type: 1, components: [
+            { type: 2, label: "Host", style: 3, customID: `mgmt_role_host_${type}` },
+            { type: 2, label: "Co-Host", style: 1, customID: `mgmt_role_cohost_${type}` }
+          ]}]
         });
         return;
       }
 
-      // Management: role selected — show session list
+      // Everything below needs DB — defer first
+      await apiDefer(interaction);
+
+      if (id.startsWith("setup_page_")) {
+        const page = parseInt(id.split("_")[2]);
+        const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
+        if (msgId) await updateSetupPanel(interaction.channel, msgId, page);
+        await apiFollowup(interaction, { content: "\u200b" });
+        return;
+      }
+
       if (id.startsWith("mgmt_role_")) {
-        const parts = id.split("_"); // mgmt_role_{role}_{type}
+        const parts = id.split("_");
         const role = parts[2];
         const type = parts[3];
         const sessions = await db.getSessions();
         const reply = buildSessionListReply(sessions, type, role, getUserId(interaction), currentWeekMonday);
-        await apiReply(interaction, reply);
+        await apiFollowup(interaction, reply);
         return;
       }
 
-      // Management: Remove button — show user's sessions
       if (id === "mgmt_remove") {
         const sessions = await db.getSessions();
         const reply = buildRemoveListReply(sessions, getUserId(interaction), currentWeekMonday);
-        await apiReply(interaction, reply);
+        await apiFollowup(interaction, reply);
         return;
       }
 
-      // Management: claim a session
       if (id.startsWith("mgmt_claim_")) {
-        // mgmt_claim_{role}_{type}_{day}_{hour}
         const parts = id.split("_");
         const role = parts[2];
         const type = parts[3];
@@ -418,22 +412,19 @@ client.on("interactionCreate", async (interaction) => {
         const hour = parseInt(parts[5]);
         const userId = getUserId(interaction);
         const ts = getSessionTimestamp(currentWeekMonday, day, hour);
-
         if (role === "host") {
           await db.setSessionHost(type, day, hour, userId);
-          await apiReply(interaction, { content: `✅ You are now **Host** for the ${type} — <t:${ts}:F>` });
+          await apiFollowup(interaction, { content: `✅ You are now **Host** for the ${type} — <t:${ts}:F>` });
         } else {
           const ok = await db.setSessionCohost(type, day, hour, userId);
-          if (!ok) { await apiReply(interaction, { content: "Session no longer available." }); return; }
-          await apiReply(interaction, { content: `✅ You are now **Co-Host** for the ${type} — <t:${ts}:F>` });
+          if (!ok) { await apiFollowup(interaction, { content: "Session no longer available." }); return; }
+          await apiFollowup(interaction, { content: `✅ You are now **Co-Host** for the ${type} — <t:${ts}:F>` });
         }
         await refreshAll();
         return;
       }
 
-      // Management: remove confirm
       if (id.startsWith("mgmt_remove_confirm_")) {
-        // mgmt_remove_confirm_{type}_{day}_{hour}
         const parts = id.split("_");
         const type = parts[3];
         const day = parts[4];
@@ -441,7 +432,7 @@ client.on("interactionCreate", async (interaction) => {
         const userId = getUserId(interaction);
         const result = await db.removeUserFromSession(type, day, hour, userId);
         const msgs = { host_removed: "✅ Removed as Host.", cohost_removed: "✅ Removed as Co-Host.", not_found: "Session not found.", not_yours: "You are not part of that session." };
-        await apiReply(interaction, { content: msgs[result] ?? "Unknown error." });
+        await apiFollowup(interaction, { content: msgs[result] ?? "Unknown error." });
         await refreshAll();
         return;
       }
@@ -451,18 +442,18 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.type === 5) {
       const id = interaction.data.customID;
 
-      // Setup regular field save
+      await apiDefer(interaction);
+
       if (id.startsWith("setup_modal_")) {
         const key = id.replace("setup_modal_", "");
         const value = getModalValue(interaction, "value");
         if (value) await db.setConfig(key, value);
         const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
         if (msgId) await updateSetupPanel(interaction.channel, msgId);
-        await apiReply(interaction, { content: value ? `✅ Updated.` : "No changes made." });
+        await apiFollowup(interaction, { content: value ? `✅ Updated.` : "No changes made." });
         return;
       }
 
-      // Announcement simple modal save
       if (id.startsWith("setup_announce_simple_modal_")) {
         const key = id.replace("setup_announce_simple_modal_", "");
         const title = getModalValue(interaction, "title");
@@ -476,38 +467,36 @@ client.on("interactionCreate", async (interaction) => {
         await db.setConfig(key, JSON.stringify(obj));
         const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
         if (msgId) await updateSetupPanel(interaction.channel, msgId);
-        await apiReply(interaction, { content: "✅ Announcement updated." });
+        await apiFollowup(interaction, { content: "✅ Announcement updated." });
         return;
       }
 
-      // Announcement JSON modal save
       if (id.startsWith("setup_announce_json_modal_")) {
         const key = id.replace("setup_announce_json_modal_", "");
         const raw = getModalValue(interaction, "json");
         try {
-          JSON.parse(raw); // validate
+          JSON.parse(raw);
           await db.setConfig(key, raw);
           const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
           if (msgId) await updateSetupPanel(interaction.channel, msgId);
-          await apiReply(interaction, { content: "✅ Announcement JSON saved." });
+          await apiFollowup(interaction, { content: "✅ Announcement JSON saved." });
         } catch {
-          await apiReply(interaction, { content: "❌ Invalid JSON. Check your formatting and try again." });
+          await apiFollowup(interaction, { content: "❌ Invalid JSON. Check your formatting and try again." });
         }
         return;
       }
 
-      // Cancel modal
       if (id === "cancel_modal") {
         const type = getModalValue(interaction, "type");
         const day = getModalValue(interaction, "day");
         const hour = parseInt(getModalValue(interaction, "hour"));
         if (!["Shift", "Training"].includes(type) || !DAYS.includes(day) || isNaN(hour)) {
-          await apiReply(interaction, { content: "Invalid input." });
+          await apiFollowup(interaction, { content: "Invalid input." });
           return;
         }
         await db.cancelSession(type, day, hour);
         ["main", "warn1", "warn2"].forEach(w => sentAnnouncements.delete(`${type}_${day}_${hour}_${w}`));
-        await apiReply(interaction, { content: `✅ **${type}** on **${day}** at **${String(hour).padStart(2, "0")}:00** cancelled.` });
+        await apiFollowup(interaction, { content: `✅ **${type}** on **${day}** at **${String(hour).padStart(2, "0")}:00** cancelled.` });
         await refreshAll();
         return;
       }
