@@ -34,10 +34,30 @@ function buildDayField(sessions, weekMonday, day, type) {
   if (list.length === 0) return "—";
   return list.map(s => {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const host = s.host ? `<@${s.host}>` : "*Open*";
-    const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
-    return `<t:${ts}:t> · ${host} & ${cohost}`;
+    const host = s.host ? `<@${s.host}>` : "/";
+    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
+    return `<t:${ts}:t> · H: ${host} · C: ${cohost}`;
   }).join("\n");
+}
+
+function buildPublicDayValue(sessions, weekMonday, day) {
+  const shifts = sessions.filter(s => s.day === day && s.type === "Shift" && s.host).sort((a, b) => a.hour - b.hour);
+  const trainings = sessions.filter(s => s.day === day && s.type === "Training" && s.host).sort((a, b) => a.hour - b.hour);
+  if (shifts.length === 0 && trainings.length === 0) return "—";
+  const lines = [];
+  for (const s of shifts) {
+    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
+    const host = s.host ? `<@${s.host}>` : "/";
+    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
+    lines.push(`🔶 <t:${ts}:t> · <t:${ts}:R>\nHost: ${host}\nCo-Host: ${cohost}`);
+  }
+  for (const s of trainings) {
+    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
+    const host = s.host ? `<@${s.host}>` : "/";
+    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
+    lines.push(`🔷 <t:${ts}:t> · <t:${ts}:R>\nHost: ${host}\nCo-Host: ${cohost}`);
+  }
+  return lines.join("\n");
 }
 
 function buildTimetableEmbed(sessions, weekMonday) {
@@ -49,9 +69,8 @@ function buildTimetableEmbed(sessions, weekMonday) {
   const fields = [];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    fields.push({ name: `🔶 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
-    fields.push({ name: `🔷 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
-    fields.push({ name: "\u200b", value: "\u200b", inline: true }); // spacer to force new row
+    const value = buildPublicDayValue(sessions, weekMonday, day);
+    fields.push({ name: `${day} — <t:${dayTs}:d>`, value, inline: false });
   }
 
   return {
@@ -59,6 +78,7 @@ function buildTimetableEmbed(sessions, weekMonday) {
     description: `<t:${wsTs}:d> – <t:${weTs}:d>`,
     color: 0xffa500,
     fields,
+    image: { url: "https://i.imgur.com/REPLACE_WITH_YOUR_LOGO.png" },
     footer: { text: "Union™ · Updated automatically" }
   };
 }

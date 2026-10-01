@@ -119,4 +119,8 @@ async function cancelSession(type, day, hour) {
   });
 }
 
-module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession };
+async function clearAllSessions() {
+  await db.execute("DELETE FROM sessions");
+}
+
+module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions };

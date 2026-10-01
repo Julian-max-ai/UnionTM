@@ -310,6 +310,18 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
+      if (cmd === "reset") {
+        if (!hasManagementRole(interaction.member, cfg)) {
+          await apiReply(interaction, { content: "You don't have permission to reset sessions." });
+          return;
+        }
+        await db.clearAllSessions();
+        sentAnnouncements.clear();
+        await apiReply(interaction, { content: "✅ All sessions cleared. Boards updated." });
+        refreshAll();
+        return;
+      }
+
       if (cmd === "cancel") {
         if (!hasManagementRole(interaction.member, cfg)) {
           await apiReply(interaction, { content: "You don't have permission to cancel sessions." });
@@ -588,6 +600,7 @@ client.on("ready", async () => {
       timetableMessageId = null;
       await db.setMessageId("management", "");
       await db.setMessageId("timetable", "");
+      await db.clearAllSessions();
       await refreshAll();
     }
   }, 60 * 1000);

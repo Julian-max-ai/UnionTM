@@ -1,17 +1,7 @@
-// Run once to register slash commands: node deploy-commands.js
 const commands = [
-  {
-    name: "setup",
-    description: "Open the Union™ bot setup panel (admin only)"
-  },
-  {
-    name: "plan",
-    description: "Plan a new shift or training session (management only)"
-  },
-  {
-    name: "cancel",
-    description: "Cancel a planned session (management only)"
-  }
+  { name: "setup", description: "Open the Union™ bot setup panel (admin only)" },
+  { name: "cancel", description: "Cancel a planned session (management only)" },
+  { name: "reset", description: "Clear all sessions from both boards (management only)" }
 ];
 
 const TOKEN = process.env.BOT_TOKEN;
