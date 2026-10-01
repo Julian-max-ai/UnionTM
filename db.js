@@ -6,12 +6,7 @@ const db = createClient({
 });
 
 async function init() {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS config (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  `);
+  await db.execute(`CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
   await db.execute(`
     CREATE TABLE IF NOT EXISTS sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +18,8 @@ async function init() {
       cancelled INTEGER DEFAULT 0
     )
   `);
+  // Store persistent message IDs so bot survives restarts
+  await db.execute(`CREATE TABLE IF NOT EXISTS message_ids (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
 }
 
 async function getConfig(key) {
@@ -44,40 +41,46 @@ async function getAllConfig() {
   return cfg;
 }
 
-async function getSessions() {
-  const res = await db.execute("SELECT * FROM sessions WHERE cancelled = 0");
-  return res.rows.map(r => ({
-    id: r.id,
-    type: r.type,
-    day: r.day,
-    hour: r.hour,
-    host: r.host,
-    cohost: r.cohost
-  }));
+async function getMessageId(key) {
+  const res = await db.execute({ sql: "SELECT value FROM message_ids WHERE key = ?", args: [key] });
+  return res.rows[0]?.value ?? null;
 }
 
-async function upsertSession(type, day, hour, host, cohost) {
+async function setMessageId(key, value) {
+  await db.execute({
+    sql: "INSERT INTO message_ids (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    args: [key, String(value)]
+  });
+}
+
+async function getSessions() {
+  const res = await db.execute("SELECT * FROM sessions WHERE cancelled = 0");
+  return res.rows.map(r => ({ id: r.id, type: r.type, day: r.day, hour: r.hour, host: r.host, cohost: r.cohost }));
+}
+
+async function upsertSession(type, day, hour) {
+  const existing = await db.execute({
+    sql: "SELECT id FROM sessions WHERE type = ? AND day = ? AND hour = ? AND cancelled = 0",
+    args: [type, day, hour]
+  });
+  if (existing.rows.length > 0) return existing.rows[0].id;
+  const res = await db.execute({
+    sql: "INSERT INTO sessions (type, day, hour) VALUES (?, ?, ?)",
+    args: [type, day, hour]
+  });
+  return res.lastInsertRowid;
+}
+
+async function setSessionHost(type, day, hour, userId) {
   const existing = await db.execute({
     sql: "SELECT id FROM sessions WHERE type = ? AND day = ? AND hour = ? AND cancelled = 0",
     args: [type, day, hour]
   });
   if (existing.rows.length > 0) {
-    await db.execute({
-      sql: "UPDATE sessions SET host = COALESCE(?, host), cohost = COALESCE(?, cohost) WHERE id = ?",
-      args: [host, cohost, existing.rows[0].id]
-    });
-    return existing.rows[0].id;
+    await db.execute({ sql: "UPDATE sessions SET host = ? WHERE id = ?", args: [userId, existing.rows[0].id] });
   } else {
-    const res = await db.execute({
-      sql: "INSERT INTO sessions (type, day, hour, host, cohost) VALUES (?, ?, ?, ?, ?)",
-      args: [type, day, hour, host ?? null, cohost ?? null]
-    });
-    return res.lastInsertRowid;
+    await db.execute({ sql: "INSERT INTO sessions (type, day, hour, host) VALUES (?, ?, ?, ?)", args: [type, day, hour, userId] });
   }
-}
-
-async function setSessionHost(type, day, hour, userId) {
-  await upsertSession(type, day, hour, userId, null);
 }
 
 async function setSessionCohost(type, day, hour, userId) {
@@ -86,14 +89,11 @@ async function setSessionCohost(type, day, hour, userId) {
     args: [type, day, hour]
   });
   if (res.rows.length === 0) return false;
-  await db.execute({
-    sql: "UPDATE sessions SET cohost = ? WHERE id = ?",
-    args: [userId, res.rows[0].id]
-  });
+  await db.execute({ sql: "UPDATE sessions SET cohost = ? WHERE id = ?", args: [userId, res.rows[0].id] });
   return true;
 }
 
-async function removeSession(type, day, hour, userId) {
+async function removeUserFromSession(type, day, hour, userId) {
   const res = await db.execute({
     sql: "SELECT * FROM sessions WHERE type = ? AND day = ? AND hour = ? AND cancelled = 0",
     args: [type, day, hour]
@@ -101,8 +101,8 @@ async function removeSession(type, day, hour, userId) {
   if (res.rows.length === 0) return "not_found";
   const s = res.rows[0];
   if (s.host === userId) {
-    await db.execute({ sql: "UPDATE sessions SET cancelled = 1 WHERE id = ?", args: [s.id] });
-    return "removed";
+    await db.execute({ sql: "UPDATE sessions SET host = NULL WHERE id = ?", args: [s.id] });
+    return "host_removed";
   }
   if (s.cohost === userId) {
     await db.execute({ sql: "UPDATE sessions SET cohost = NULL WHERE id = ?", args: [s.id] });
@@ -118,4 +118,4 @@ async function cancelSession(type, day, hour) {
   });
 }
 
-module.exports = { init, getConfig, setConfig, getAllConfig, getSessions, upsertSession, setSessionHost, setSessionCohost, removeSession, cancelSession };
+module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession };

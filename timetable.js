@@ -135,13 +135,22 @@ function buildManagementEmbed(sessions, weekMonday) {
   };
 }
 
-const MANAGEMENT_BUTTONS = {
-  type: 1,
-  components: [
-    { type: 2, label: "Host", style: 3, customID: "mgmt_host" },
-    { type: 2, label: "Co-Host", style: 1, customID: "mgmt_cohost" },
-    { type: 2, label: "Remove", style: 4, customID: "mgmt_remove" }
-  ]
-};
+const MANAGEMENT_BUTTONS = [
+  {
+    type: 1,
+    components: [
+      { type: 2, label: "📋 Plan Shift", style: 3, customID: "mgmt_plan_shift" },
+      { type: 2, label: "📋 Plan Training", style: 1, customID: "mgmt_plan_training" }
+    ]
+  },
+  {
+    type: 1,
+    components: [
+      { type: 2, label: "Host", style: 3, customID: "mgmt_host" },
+      { type: 2, label: "Co-Host", style: 1, customID: "mgmt_cohost" },
+      { type: 2, label: "Remove", style: 4, customID: "mgmt_remove" }
+    ]
+  }
+];
 
 module.exports = { DAYS, getWeekStart, getDateForWeekday, getSessionTimestamp, buildTimetableEmbed, buildManagementEmbed, MANAGEMENT_BUTTONS };
