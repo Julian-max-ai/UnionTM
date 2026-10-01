@@ -281,10 +281,9 @@ async function checkAnnouncements() {
 
 client.on("interactionCreate", async (interaction) => {
   try {
-    const cfg = await db.getAllConfig();
-
     // ── Slash Commands ────────────────────────────────────────────────────────
     if (interaction.type === 2) {
+      const cfg = await db.getAllConfig();
       const cmd = interaction.data.name;
 
       if (cmd === "setup") {
@@ -310,14 +309,28 @@ client.on("interactionCreate", async (interaction) => {
         });
         return;
       }
-    }
+    } // end slash commands
 
     // ── Buttons ───────────────────────────────────────────────────────────────
     if (interaction.type === 3 && interaction.data.componentType === 2) {
       const id = interaction.data.customID;
 
-      // Modals must be opened BEFORE defer — handle them first without deferring
+      // Modals & no-DB replies: respond immediately without defer
+      if (id === "mgmt_type_Shift" || id === "mgmt_type_Training") {
+        const type = id === "mgmt_type_Shift" ? "Shift" : "Training";
+        await apiReply(interaction, {
+          content: `**${type}** — Select your role:`,
+          components: [{ type: 1, components: [
+            { type: 2, label: "Host", style: 3, customID: `mgmt_role_host_${type}` },
+            { type: 2, label: "Co-Host", style: 1, customID: `mgmt_role_cohost_${type}` }
+          ]}]
+        });
+        return;
+      }
+
+      // Setup modal buttons: need cfg but must open modal (no defer allowed)
       if (id.startsWith("setup_edit_") || id.startsWith("setup_announce_simple_") || id.startsWith("setup_announce_json_")) {
+        const cfg = await db.getAllConfig();
         const key = id.startsWith("setup_edit_") ? id.replace("setup_edit_", "")
           : id.startsWith("setup_announce_simple_") ? id.replace("setup_announce_simple_", "")
           : id.replace("setup_announce_json_", "");
@@ -364,20 +377,10 @@ client.on("interactionCreate", async (interaction) => {
         }
       }
 
-      if (id === "mgmt_type_Shift" || id === "mgmt_type_Training") {
-        const type = id === "mgmt_type_Shift" ? "Shift" : "Training";
-        await apiReply(interaction, {
-          content: `**${type}** — Select your role:`,
-          components: [{ type: 1, components: [
-            { type: 2, label: "Host", style: 3, customID: `mgmt_role_host_${type}` },
-            { type: 2, label: "Co-Host", style: 1, customID: `mgmt_role_cohost_${type}` }
-          ]}]
-        });
-        return;
-      }
-
-      // Everything below needs DB — defer first
+      // All other buttons: defer immediately, load DB after
       await apiDefer(interaction);
+
+      const cfg = await db.getAllConfig();
 
       if (id.startsWith("setup_page_")) {
         const page = parseInt(id.split("_")[2]);
@@ -443,6 +446,7 @@ client.on("interactionCreate", async (interaction) => {
       const id = interaction.data.customID;
 
       await apiDefer(interaction);
+      const cfg = await db.getAllConfig();
 
       if (id.startsWith("setup_modal_")) {
         const key = id.replace("setup_modal_", "");
@@ -450,7 +454,7 @@ client.on("interactionCreate", async (interaction) => {
         if (value) await db.setConfig(key, value);
         const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
         if (msgId) await updateSetupPanel(interaction.channel, msgId);
-        await apiFollowup(interaction, { content: value ? `✅ Updated.` : "No changes made." });
+        await apiFollowup(interaction, { content: value ? "✅ Updated." : "No changes made." });
         return;
       }
 
@@ -500,7 +504,7 @@ client.on("interactionCreate", async (interaction) => {
         await refreshAll();
         return;
       }
-    }
+    } // end modals
   } catch (err) {
     console.error("Interaction error:", err);
   }
