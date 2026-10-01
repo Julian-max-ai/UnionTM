@@ -122,17 +122,15 @@ function buildSessionListReply(sessions, type, role, userId, weekMonday) {
 
   const rows = [];
   let row = { type: 1, components: [] };
+  const seenIds = new Set();
   for (const s of available) {
     if (rows.length >= 4 && row.components.length === 0) break;
     if (row.components.length === 5) { rows.push(row); row = { type: 1, components: [] }; if (rows.length >= 4) break; }
-    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const label = `${s.day.slice(0, 3)} <t:${ts}:t>`;
-    // Button labels can't have < >, use day + hour
+    const customID = `mgmt_claim_${role}_${type}_${s.day}_${s.hour}`;
+    if (seenIds.has(customID)) continue;
+    seenIds.add(customID);
     const btnLabel = `${s.day.slice(0, 3)} ${String(s.hour).padStart(2, "0")}:00`;
-    row.components.push({
-      type: 2, label: btnLabel, style: 1,
-      customID: `mgmt_claim_${role}_${type}_${s.day}_${s.hour}`
-    });
+    row.components.push({ type: 2, label: btnLabel, style: 1, customID });
   }
   if (row.components.length > 0) rows.push(row);
 
@@ -162,16 +160,15 @@ function buildRemoveListReply(sessions, userId, weekMonday) {
 
   const rows = [];
   let row = { type: 1, components: [] };
+  const seenIds = new Set();
   for (const s of mine) {
     if (rows.length >= 4 && row.components.length === 0) break;
     if (row.components.length === 5) { rows.push(row); row = { type: 1, components: [] }; if (rows.length >= 4) break; }
-    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const role = s.host === userId ? "host" : "cohost";
+    const customID = `mgmt_remove_confirm_${s.type}_${s.day}_${s.hour}`;
+    if (seenIds.has(customID)) continue;
+    seenIds.add(customID);
     const btnLabel = `${s.type.slice(0, 3)} ${s.day.slice(0, 3)} ${String(s.hour).padStart(2, "0")}:00`;
-    row.components.push({
-      type: 2, label: btnLabel, style: 4,
-      customID: `mgmt_remove_confirm_${s.type}_${s.day}_${s.hour}`
-    });
+    row.components.push({ type: 2, label: btnLabel, style: 4, customID });
   }
   if (row.components.length > 0) rows.push(row);
 

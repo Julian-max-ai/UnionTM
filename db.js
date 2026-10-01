@@ -18,8 +18,9 @@ async function init() {
       cancelled INTEGER DEFAULT 0
     )
   `);
-  // Store persistent message IDs so bot survives restarts
   await db.execute(`CREATE TABLE IF NOT EXISTS message_ids (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  // Ensure no duplicate sessions (type+day+hour must be unique)
+  try { await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_unique ON sessions(type, day, hour)`); } catch {}
 }
 
 async function getConfig(key) {
@@ -72,15 +73,11 @@ async function upsertSession(type, day, hour) {
 }
 
 async function setSessionHost(type, day, hour, userId) {
-  const existing = await db.execute({
-    sql: "SELECT id FROM sessions WHERE type = ? AND day = ? AND hour = ? AND cancelled = 0",
-    args: [type, day, hour]
+  await db.execute({
+    sql: `INSERT INTO sessions (type, day, hour, host) VALUES (?, ?, ?, ?)
+          ON CONFLICT(type, day, hour) DO UPDATE SET host = excluded.host, cancelled = 0`,
+    args: [type, day, hour, userId]
   });
-  if (existing.rows.length > 0) {
-    await db.execute({ sql: "UPDATE sessions SET host = ? WHERE id = ?", args: [userId, existing.rows[0].id] });
-  } else {
-    await db.execute({ sql: "INSERT INTO sessions (type, day, hour, host) VALUES (?, ?, ?, ?)", args: [type, day, hour, userId] });
-  }
 }
 
 async function setSessionCohost(type, day, hour, userId) {
