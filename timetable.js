@@ -47,15 +47,11 @@ function buildPublicDayValue(sessions, weekMonday, day) {
   const lines = [];
   for (const s of shifts) {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const host = s.host ? `<@${s.host}>` : "/";
-    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
-    lines.push(`🔶 <t:${ts}:t> · <t:${ts}:R>\nHost: ${host}\nCo-Host: ${cohost}`);
+    lines.push(`🔶 <t:${ts}:t> · <t:${ts}:R>\nHost: ${s.host ? `<@${s.host}>` : "/"} · Co: ${s.cohost ? `<@${s.cohost}>` : "/"}`);
   }
   for (const s of trainings) {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const host = s.host ? `<@${s.host}>` : "/";
-    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
-    lines.push(`🔷 <t:${ts}:t> · <t:${ts}:R>\nHost: ${host}\nCo-Host: ${cohost}`);
+    lines.push(`🔷 <t:${ts}:t> · <t:${ts}:R>\nHost: ${s.host ? `<@${s.host}>` : "/"} · Co: ${s.cohost ? `<@${s.cohost}>` : "/"}`);
   }
   return lines.join("\n");
 }
@@ -67,10 +63,14 @@ function buildTimetableEmbed(sessions, weekMonday) {
   const weTs = Math.floor(weekEnd.getTime() / 1000);
 
   const fields = [];
-  for (const day of DAYS) {
-    const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    const value = buildPublicDayValue(sessions, weekMonday, day);
-    fields.push({ name: `${day} — <t:${dayTs}:d>`, value, inline: false });
+  for (let i = 0; i < DAYS.length; i += 2) {
+    const d1 = DAYS[i], d2 = DAYS[i + 1];
+    const ts1 = Math.floor(getDateForWeekday(weekMonday, d1).getTime() / 1000);
+    fields.push({ name: `${d1} — <t:${ts1}:d>`, value: buildPublicDayValue(sessions, weekMonday, d1), inline: true });
+    if (d2) {
+      const ts2 = Math.floor(getDateForWeekday(weekMonday, d2).getTime() / 1000);
+      fields.push({ name: `${d2} — <t:${ts2}:d>`, value: buildPublicDayValue(sessions, weekMonday, d2), inline: true });
+    }
   }
 
   return {
@@ -78,7 +78,7 @@ function buildTimetableEmbed(sessions, weekMonday) {
     description: `<t:${wsTs}:d> – <t:${weTs}:d>`,
     color: 0xffa500,
     fields,
-    image: { url: "https://i.imgur.com/T3gfI1g.png" },
+    image: { url: "https://media.discordapp.net/attachments/1553849844550869164/1555229752963502240/ChatGPT_Image_Jun_29__2026__09_29_21_PM-removebg-preview.png" },
     footer: { text: "Union™ · Updated automatically" }
   };
 }
