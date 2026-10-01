@@ -100,48 +100,79 @@ async function refreshAll() {
   await refreshTimetable(cfg);
 }
 
-// ─── Session List Builder ─────────────────────────────────────────────────────
+// ─── Session Flow Builders ────────────────────────────────────────────────────
 
-function buildSessionListReply(sessions, type, role, userId, weekMonday) {
-  // role = "host" or "cohost"
-  const available = sessions.filter(s => {
-    if (s.type !== type) return false;
-    if (role === "host") return !s.host;
-    if (role === "cohost") return s.host && !s.cohost;
-    return false;
-  });
-
-  if (available.length === 0) {
-    return { content: `No available **${type}** sessions for **${role}** right now.`, components: [] };
-  }
-
-  const lines = available.map(s => {
-    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    return `<t:${ts}:F> (<t:${ts}:R>)`;
-  });
-
+// Step 1 after role select: show day picker
+function buildDaySelectReply(type, role) {
   const rows = [];
   let row = { type: 1, components: [] };
-  const seenIds = new Set();
-  for (const s of available) {
-    if (rows.length >= 4 && row.components.length === 0) break;
-    if (row.components.length === 5) { rows.push(row); row = { type: 1, components: [] }; if (rows.length >= 4) break; }
-    const customID = `mgmt_claim_${role}_${type}_${s.day}_${s.hour}`;
-    if (seenIds.has(customID)) continue;
-    seenIds.add(customID);
-    const btnLabel = `${s.day.slice(0, 3)} ${String(s.hour).padStart(2, "0")}:00`;
-    row.components.push({ type: 2, label: btnLabel, style: 1, customID });
+  for (const day of DAYS) {
+    if (row.components.length === 5) { rows.push(row); row = { type: 1, components: [] }; }
+    row.components.push({ type: 2, label: day.slice(0, 3), style: 2, customID: `mgmt_day_${role}_${type}_${day}` });
   }
   if (row.components.length > 0) rows.push(row);
+  return {
+    embeds: [{ title: `${type === "Shift" ? "🔶" : "🔷"} ${type} — ${role === "host" ? "Host" : "Co-Host"}`, description: "Select a day:", color: type === "Shift" ? 0xffa500 : 0x5865f2 }],
+    components: rows
+  };
+}
+
+// Step 2: show available times for that day (filtered by past)
+function buildTimeSelectReply(sessions, type, role, day, weekMonday, page = 0) {
+  const now = Math.floor(Date.now() / 1000);
+  // All hours 0-23, filter out past ones and already-taken slots
+  const takenHours = new Set(
+    sessions
+      .filter(s => s.type === type && s.day === day)
+      .filter(s => role === "host" ? s.host : (s.host && s.cohost))
+      .map(s => s.hour)
+  );
+  const hours = Array.from({ length: 24 }, (_, h) => h).filter(h => {
+    const ts = getSessionTimestamp(weekMonday, day, h);
+    return ts > now && !takenHours.has(h);
+  });
+
+  if (hours.length === 0) {
+    return { embeds: [{ title: "No available times", description: `No future slots available for **${day}**.`, color: 0xff4444 }], components: [] };
+  }
+
+  const PAGE = 5;
+  const totalPages = Math.ceil(hours.length / PAGE);
+  const slice = hours.slice(page * PAGE, page * PAGE + PAGE);
+
+  const lines = slice.map(h => {
+    const ts = getSessionTimestamp(weekMonday, day, h);
+    const s = sessions.find(s => s.type === type && s.day === day && s.hour === h);
+    const hostVal = s?.host ? `<@${s.host}>` : "*Open*";
+    const cohostVal = s?.cohost ? `<@${s.cohost}>` : "*Open*";
+    return `<t:${ts}:t> · <t:${ts}:R> · Host: ${hostVal} · Co-Host: ${cohostVal}`;
+  });
+
+  const timeRow = { type: 1, components: slice.map(h => {
+    const ts = getSessionTimestamp(weekMonday, day, h);
+    return { type: 2, label: `<t:${ts}:t>`.replace(/<t:\d+:t>/, `${String(h).padStart(2,"0")}:00`), style: 2, customID: `mgmt_claim_${role}_${type}_${day}_${h}` };
+  })};
+  // Fix: button label can't have discord timestamps, use plain time
+  timeRow.components = slice.map(h => ({
+    type: 2, label: `${String(h).padStart(2, "0")}:00`, style: 2,
+    customID: `mgmt_claim_${role}_${type}_${day}_${h}`
+  }));
+
+  const navRow = { type: 1, components: [] };
+  if (page > 0) navRow.components.push({ type: 2, label: "◀", style: 2, customID: `mgmt_timepage_${role}_${type}_${day}_${page - 1}` });
+  if (page < totalPages - 1) navRow.components.push({ type: 2, label: "▶", style: 2, customID: `mgmt_timepage_${role}_${type}_${day}_${page + 1}` });
+
+  const components = [timeRow];
+  if (navRow.components.length > 0) components.push(navRow);
 
   return {
     embeds: [{
-      title: `${type === "Shift" ? "🔶" : "🔷"} Available ${type} Sessions — ${role}`,
+      title: `${type === "Shift" ? "🔶" : "🔷"} ${type} — ${role === "host" ? "Host" : "Co-Host"} — ${day}`,
       description: lines.join("\n"),
       color: type === "Shift" ? 0xffa500 : 0x5865f2,
-      footer: { text: "Times shown in your local timezone · Click a button to claim" }
+      footer: { text: `Page ${page + 1}/${totalPages} · Times in your local timezone` }
     }],
-    components: rows
+    components
   };
 }
 
@@ -285,12 +316,12 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
         await apiModal(interaction, {
-          custom_id: "cancel_modal",
+          customID: "cancel_modal",
           title: "Cancel a Session",
           components: [
-            { type: 1, components: [{ type: 4, custom_id: "type", label: "Type (Shift / Training)", style: 1, placeholder: "Shift", required: true }] },
-            { type: 1, components: [{ type: 4, custom_id: "day", label: "Day", style: 1, placeholder: "e.g. Monday", required: true }] },
-            { type: 1, components: [{ type: 4, custom_id: "hour", label: "Hour (0-23, Berlin time)", style: 1, placeholder: "e.g. 15", required: true }] }
+            { type: 1, components: [{ type: 4, customID: "type", label: "Type (Shift / Training)", style: 1, placeholder: "Shift", required: true }] },
+            { type: 1, components: [{ type: 4, customID: "day", label: "Day", style: 1, placeholder: "e.g. Monday", required: true }] },
+            { type: 1, components: [{ type: 4, customID: "hour", label: "Hour (0-23, Berlin time)", style: 1, placeholder: "e.g. 15", required: true }] }
           ]
         });
         return;
@@ -332,9 +363,9 @@ client.on("interactionCreate", async (interaction) => {
             return;
           }
           await apiModal(interaction, {
-            custom_id: `setup_modal_${key}`,
+            customID: `setup_modal_${key}`,
             title: `Edit: ${meta.label.slice(0, 45)}`,
-            components: [{ type: 1, components: [{ type: 4, custom_id: "value", label: meta.label.slice(0, 45), style: 1, placeholder: meta.desc.slice(0, 100), required: false, value: cfg[key] ?? "" }] }]
+            components: [{ type: 1, components: [{ type: 4, customID: "value", label: meta.label.slice(0, 45), style: 1, placeholder: meta.desc.slice(0, 100), required: false, value: cfg[key] ?? "" }] }]
           });
           return;
         }
@@ -342,12 +373,12 @@ client.on("interactionCreate", async (interaction) => {
         if (id.startsWith("setup_announce_simple_")) {
           const existing = parseAnnounceValue(cfg[key]);
           await apiModal(interaction, {
-            custom_id: `setup_announce_simple_modal_${key}`,
+            customID: `setup_announce_simple_modal_${key}`,
             title: "Edit Announcement (Simple)",
             components: [
-              { type: 1, components: [{ type: 4, custom_id: "title", label: "Embed Title", style: 1, required: false, value: existing?.title ?? "" }] },
-              { type: 1, components: [{ type: 4, custom_id: "description", label: "Description (supports **bold**, *italic*)", style: 2, required: false, value: existing?.description ?? "" }] },
-              { type: 1, components: [{ type: 4, custom_id: "color", label: "Color (hex, e.g. ffa500)", style: 1, required: false, placeholder: "ffa500", value: existing?.color ? existing.color.toString(16) : "" }] }
+              { type: 1, components: [{ type: 4, customID: "title", label: "Embed Title", style: 1, required: false, value: existing?.title ?? "" }] },
+              { type: 1, components: [{ type: 4, customID: "description", label: "Description (supports **bold**, *italic*)", style: 2, required: false, value: existing?.description ?? "" }] },
+              { type: 1, components: [{ type: 4, customID: "color", label: "Color (hex, e.g. ffa500)", style: 1, required: false, placeholder: "ffa500", value: existing?.color ? existing.color.toString(16) : "" }] }
             ]
           });
           return;
@@ -355,9 +386,9 @@ client.on("interactionCreate", async (interaction) => {
 
         if (id.startsWith("setup_announce_json_")) {
           await apiModal(interaction, {
-            custom_id: `setup_announce_json_modal_${key}`,
+            customID: `setup_announce_json_modal_${key}`,
             title: "Edit Announcement (JSON)",
-            components: [{ type: 1, components: [{ type: 4, custom_id: "json", label: "Discord Embed JSON (from discohook.org)", style: 2, required: false, placeholder: '{"title":"...","description":"...","color":16753920}', value: cfg[key] ?? "" }] }]
+            components: [{ type: 1, components: [{ type: 4, customID: "json", label: "Discord Embed JSON (from discohook.org)", style: 2, required: false, placeholder: '{"title":"...","description":"...","color":16753920}', value: cfg[key] ?? "" }] }]
           });
           return;
         }
@@ -379,9 +410,30 @@ client.on("interactionCreate", async (interaction) => {
         const parts = id.split("_");
         const role = parts[2];
         const type = parts[3];
+        await apiFollowup(interaction, buildDaySelectReply(type, role));
+        return;
+      }
+
+      if (id.startsWith("mgmt_day_")) {
+        // mgmt_day_{role}_{type}_{day}
+        const parts = id.split("_");
+        const role = parts[2];
+        const type = parts[3];
+        const day = parts[4];
         const sessions = await db.getSessions();
-        const reply = buildSessionListReply(sessions, type, role, getUserId(interaction), currentWeekMonday);
-        await apiFollowup(interaction, reply);
+        await apiFollowup(interaction, buildTimeSelectReply(sessions, type, role, day, currentWeekMonday, 0));
+        return;
+      }
+
+      if (id.startsWith("mgmt_timepage_")) {
+        // mgmt_timepage_{role}_{type}_{day}_{page}
+        const parts = id.split("_");
+        const role = parts[2];
+        const type = parts[3];
+        const day = parts[4];
+        const page = parseInt(parts[5]);
+        const sessions = await db.getSessions();
+        await apiFollowup(interaction, buildTimeSelectReply(sessions, type, role, day, currentWeekMonday, page));
         return;
       }
 

@@ -73,11 +73,15 @@ async function upsertSession(type, day, hour) {
 }
 
 async function setSessionHost(type, day, hour, userId) {
-  await db.execute({
-    sql: `INSERT INTO sessions (type, day, hour, host) VALUES (?, ?, ?, ?)
-          ON CONFLICT(type, day, hour) DO UPDATE SET host = excluded.host, cancelled = 0`,
-    args: [type, day, hour, userId]
+  const existing = await db.execute({
+    sql: "SELECT id FROM sessions WHERE type = ? AND day = ? AND hour = ? AND cancelled = 0",
+    args: [type, day, hour]
   });
+  if (existing.rows.length > 0) {
+    await db.execute({ sql: "UPDATE sessions SET host = ? WHERE id = ?", args: [userId, existing.rows[0].id] });
+  } else {
+    await db.execute({ sql: "INSERT INTO sessions (type, day, hour, host) VALUES (?, ?, ?, ?)", args: [type, day, hour, userId] });
+  }
 }
 
 async function setSessionCohost(type, day, hour, userId) {
