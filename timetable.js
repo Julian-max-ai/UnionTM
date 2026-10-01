@@ -71,11 +71,15 @@ function buildTimetableEmbed(sessions, weekMonday) {
   const wsTs = Math.floor(weekMonday.getTime() / 1000);
   const weTs = Math.floor(weekEnd.getTime() / 1000);
 
-  const fields = [];
+  const fields = [
+    { name: "🔶  Shift", value: "\u200b", inline: true },
+    { name: "\u3000🔷  Training", value: "\u200b", inline: true },
+    { name: "\u200b", value: "\u200b", inline: true }
+  ];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    fields.push({ name: `🔶 ${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
-    fields.push({ name: `🔷 ${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    fields.push({ name: `${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
+    fields.push({ name: `\u3000${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
     fields.push({ name: "\u200b", value: "\u200b", inline: true });
   }
 
@@ -90,11 +94,15 @@ function buildTimetableEmbed(sessions, weekMonday) {
 }
 
 function buildManagementEmbed(sessions, weekMonday) {
-  const fields = [];
+  const fields = [
+    { name: "🔶  Shift", value: "\u200b", inline: true },
+    { name: "\u3000🔷  Training", value: "\u200b", inline: true },
+    { name: "\u200b", value: "\u200b", inline: true }
+  ];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    fields.push({ name: `🔶 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
-    fields.push({ name: `🔷 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    fields.push({ name: `${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
+    fields.push({ name: `\u3000${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
     fields.push({ name: "\u200b", value: "\u200b", inline: true });
   }
 
