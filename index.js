@@ -264,7 +264,12 @@ async function checkAnnouncements() {
 // ─── Interactions ─────────────────────────────────────────────────────────────
 
 client.on("interactionCreate", async (interaction) => {
+  let deferred = false;
   try {
+    async function safeDefer() {
+      await interaction.defer(64);
+      deferred = true;
+    }
     // ── Slash Commands ────────────────────────────────────────────────────────
     if (interaction.type === 2) {
       const cfg = await db.getAllConfig();
@@ -361,12 +366,11 @@ client.on("interactionCreate", async (interaction) => {
         }
       }
 
-      // All other buttons: defer immediately, load DB after
-      await apiDefer(interaction);
-
-      const cfg = await db.getAllConfig();
+      // All other buttons: defer immediately, load DB only when needed
+      await safeDefer();
 
       if (id.startsWith("setup_page_")) {
+        const cfg = await db.getAllConfig();
         const page = parseInt(id.split("_")[2]);
         const msgId = setupPanels.get(interaction.channel.id) ?? interaction.message?.id;
         if (msgId) await updateSetupPanel(interaction.channel, msgId, page);
@@ -429,7 +433,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.type === 5) {
       const id = interaction.data.customID;
 
-      await apiDefer(interaction);
+      await safeDefer();
       const cfg = await db.getAllConfig();
 
       if (id.startsWith("setup_modal_")) {
@@ -491,6 +495,10 @@ client.on("interactionCreate", async (interaction) => {
     } // end modals
   } catch (err) {
     console.error("Interaction error:", err);
+    try {
+      if (deferred) await interaction.createFollowup({ content: "An error occurred.", flags: 64 });
+      else await interaction.createMessage({ content: "An error occurred.", flags: 64 });
+    } catch {}
   }
 });
 

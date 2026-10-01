@@ -29,106 +29,53 @@ function getSessionTimestamp(weekMonday, day, hour) {
   return Math.floor((utcDate.getTime() + diff) / 1000);
 }
 
+function buildDayField(sessions, weekMonday, day, type) {
+  const list = sessions.filter(s => s.day === day && s.type === type).sort((a, b) => a.hour - b.hour);
+  if (list.length === 0) return "—";
+  return list.map(s => {
+    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
+    const host = s.host ? `<@${s.host}>` : "*Open*";
+    const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
+    return `<t:${ts}:t> · ${host} & ${cohost}`;
+  }).join("\n");
+}
+
 function buildTimetableEmbed(sessions, weekMonday) {
   const weekEnd = new Date(weekMonday);
   weekEnd.setDate(weekEnd.getDate() + 6);
   const wsTs = Math.floor(weekMonday.getTime() / 1000);
   const weTs = Math.floor(weekEnd.getTime() / 1000);
 
-  const shiftLines = [];
-  const trainingLines = [];
-
+  const fields = [];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    shiftLines.push(`**${day} — <t:${dayTs}:d>**`);
-    trainingLines.push(`**${day} — <t:${dayTs}:d>**`);
-
-    const shifts = sessions.filter(s => s.day === day && s.type === "Shift").sort((a, b) => a.hour - b.hour);
-    const trainings = sessions.filter(s => s.day === day && s.type === "Training").sort((a, b) => a.hour - b.hour);
-
-    if (shifts.length === 0) {
-      shiftLines.push("No sessions");
-    } else {
-      for (const s of shifts) {
-        const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "*Open*";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
-        shiftLines.push(`🟠 <t:${ts}:t> — ${host} & ${cohost}`);
-      }
-    }
-
-    if (trainings.length === 0) {
-      trainingLines.push("No sessions");
-    } else {
-      for (const s of trainings) {
-        const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "*Open*";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
-        trainingLines.push(`🔷 <t:${ts}:t> — ${host} & ${cohost}`);
-      }
-    }
-
-    shiftLines.push("");
-    trainingLines.push("");
+    fields.push({ name: `🔶 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
+    fields.push({ name: `🔷 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    fields.push({ name: "\u200b", value: "\u200b", inline: true }); // spacer to force new row
   }
 
   return {
     title: `📅 Weekly Timetable — Union™`,
     description: `<t:${wsTs}:d> – <t:${weTs}:d>`,
     color: 0xffa500,
-    fields: [
-      { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: false },
-      { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: false }
-    ],
+    fields,
     footer: { text: "Union™ · Updated automatically" }
   };
 }
 
 function buildManagementEmbed(sessions, weekMonday) {
-  const shiftLines = [];
-  const trainingLines = [];
-
+  const fields = [];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    shiftLines.push(`**${day} — <t:${dayTs}:d>**`);
-    trainingLines.push(`**${day} — <t:${dayTs}:d>**`);
-
-    const shifts = sessions.filter(s => s.day === day && s.type === "Shift").sort((a, b) => a.hour - b.hour);
-    const trainings = sessions.filter(s => s.day === day && s.type === "Training").sort((a, b) => a.hour - b.hour);
-
-    if (shifts.length === 0) {
-      shiftLines.push("No sessions");
-    } else {
-      for (const s of shifts) {
-        const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "*Open*";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
-        shiftLines.push(`🟠 <t:${ts}:f>\nHost: ${host}\nCo-Host: ${cohost}`);
-      }
-    }
-
-    if (trainings.length === 0) {
-      trainingLines.push("No sessions");
-    } else {
-      for (const s of trainings) {
-        const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "*Open*";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
-        trainingLines.push(`🔷 <t:${ts}:f>\nHost: ${host}\nCo-Host: ${cohost}`);
-      }
-    }
-
-    shiftLines.push("");
-    trainingLines.push("");
+    fields.push({ name: `🔶 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
+    fields.push({ name: `🔷 ${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    fields.push({ name: "\u200b", value: "\u200b", inline: true });
   }
 
   return {
     title: "📋 Session Management — Union™",
     color: 0x00cc66,
-    fields: [
-      { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: false },
-      { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: false }
-    ],
+    fields,
     footer: { text: "Union™ · Use buttons below to sign up or remove yourself" }
   };
 }
