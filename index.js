@@ -407,7 +407,7 @@ client.on("interactionCreate", async (interaction) => {
           if (!ok) { await apiFollowup(interaction, { content: "Session no longer available." }); return; }
           await apiFollowup(interaction, { content: `✅ You are now **Co-Host** for the ${type} — <t:${ts}:F>` });
         }
-        await refreshAll();
+        refreshAll();
         return;
       }
 
@@ -420,7 +420,7 @@ client.on("interactionCreate", async (interaction) => {
         const result = await db.removeUserFromSession(type, day, hour, userId);
         const msgs = { host_removed: "✅ Removed as Host.", cohost_removed: "✅ Removed as Co-Host.", not_found: "Session not found.", not_yours: "You are not part of that session." };
         await apiFollowup(interaction, { content: msgs[result] ?? "Unknown error." });
-        await refreshAll();
+        refreshAll();
         return;
       }
     }
@@ -485,7 +485,7 @@ client.on("interactionCreate", async (interaction) => {
         await db.cancelSession(type, day, hour);
         ["main", "warn1", "warn2"].forEach(w => sentAnnouncements.delete(`${type}_${day}_${hour}_${w}`));
         await apiFollowup(interaction, { content: `✅ **${type}** on **${day}** at **${String(hour).padStart(2, "0")}:00** cancelled.` });
-        await refreshAll();
+        refreshAll();
         return;
       }
     } // end modals

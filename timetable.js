@@ -77,8 +77,8 @@ function buildTimetableEmbed(sessions, weekMonday) {
     description: `<t:${wsTs}:d> – <t:${weTs}:d>`,
     color: 0xffa500,
     fields: [
-      { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: true },
-      { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: true }
+      { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: false },
+      { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: false }
     ],
     footer: { text: "Union™ · Updated automatically" }
   };
@@ -101,8 +101,8 @@ function buildManagementEmbed(sessions, weekMonday) {
     } else {
       for (const s of shifts) {
         const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "❌ Open";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "❌ Open";
+        const host = s.host ? `<@${s.host}>` : "*Open*";
+        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
         shiftLines.push(`🟠 <t:${ts}:f>\nHost: ${host}\nCo-Host: ${cohost}`);
       }
     }
@@ -112,8 +112,8 @@ function buildManagementEmbed(sessions, weekMonday) {
     } else {
       for (const s of trainings) {
         const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "❌ Open";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "❌ Open";
+        const host = s.host ? `<@${s.host}>` : "*Open*";
+        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
         trainingLines.push(`🔷 <t:${ts}:f>\nHost: ${host}\nCo-Host: ${cohost}`);
       }
     }
@@ -126,8 +126,8 @@ function buildManagementEmbed(sessions, weekMonday) {
     title: "📋 Session Management — Union™",
     color: 0x00cc66,
     fields: [
-      { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: true },
-      { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: true }
+      { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: false },
+      { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: false }
     ],
     footer: { text: "Union™ · Use buttons below to sign up or remove yourself" }
   };
