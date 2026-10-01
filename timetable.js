@@ -36,32 +36,16 @@ function buildDayField(sessions, weekMonday, day, type) {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
     const host = s.host ? `<@${s.host}>` : "/";
     const cohost = s.cohost ? `<@${s.cohost}>` : "/";
-    return `<t:${ts}:t> · H: ${host} · C: ${cohost}`;
-  }).join("\n");
-}
-
-function buildDayField(sessions, weekMonday, day, type) {
-  const list = sessions.filter(s => s.day === day && s.type === type).sort((a, b) => a.hour - b.hour);
-  if (list.length === 0) return "—";
-  return list.map(s => {
-    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const host = s.host ? `<@${s.host}>` : "/";
-    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
     return `<t:${ts}:t> · ${host} & ${cohost}`;
   }).join("\n");
 }
 
-function buildPublicDayValue(sessions, weekMonday, day) {
-  const list = [
-    ...sessions.filter(s => s.day === day && s.type === "Shift" && s.host).sort((a, b) => a.hour - b.hour).map(s => ({ ...s, emoji: "🔶" })),
-    ...sessions.filter(s => s.day === day && s.type === "Training" && s.host).sort((a, b) => a.hour - b.hour).map(s => ({ ...s, emoji: "🔷" }))
-  ];
+function buildPublicDayValue(sessions, weekMonday, day, type) {
+  const list = sessions.filter(s => s.day === day && s.type === type && s.host).sort((a, b) => a.hour - b.hour);
   if (list.length === 0) return "—";
   return list.map(s => {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    const host = s.host ? `<@${s.host}>` : "/";
-    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
-    return `${s.emoji} <t:${ts}:t> · <t:${ts}:R> · ${host} & ${cohost}`;
+    return `<t:${ts}:t> · <@${s.host}> & ${s.cohost ? `<@${s.cohost}>` : "/"}`;
   }).join("\n");
 }
 
@@ -73,13 +57,15 @@ function buildTimetableEmbed(sessions, weekMonday) {
 
   const fields = [
     { name: "🔶  Shift", value: "\u200b", inline: true },
-    { name: "\u3000🔷  Training", value: "\u200b", inline: true },
+    { name: "\u3000\u3000\u3000🔷  Training", value: "\u200b", inline: true },
     { name: "\u200b", value: "\u200b", inline: true }
   ];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    fields.push({ name: `${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
-    fields.push({ name: `\u3000${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    const shiftVal = `<t:${dayTs}:d>\n${buildPublicDayValue(sessions, weekMonday, day, "Shift")}`;
+    const trainVal = `<t:${dayTs}:d>\n${buildPublicDayValue(sessions, weekMonday, day, "Training")}`;
+    fields.push({ name: day, value: shiftVal, inline: true });
+    fields.push({ name: "\u3000\u3000\u3000" + day, value: trainVal, inline: true });
     fields.push({ name: "\u200b", value: "\u200b", inline: true });
   }
 
@@ -96,13 +82,15 @@ function buildTimetableEmbed(sessions, weekMonday) {
 function buildManagementEmbed(sessions, weekMonday) {
   const fields = [
     { name: "🔶  Shift", value: "\u200b", inline: true },
-    { name: "\u3000🔷  Training", value: "\u200b", inline: true },
+    { name: "\u3000\u3000\u3000🔷  Training", value: "\u200b", inline: true },
     { name: "\u200b", value: "\u200b", inline: true }
   ];
   for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    fields.push({ name: `${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
-    fields.push({ name: `\u3000${day} <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    const shiftVal = `<t:${dayTs}:d>\n${buildDayField(sessions, weekMonday, day, "Shift")}`;
+    const trainVal = `<t:${dayTs}:d>\n${buildDayField(sessions, weekMonday, day, "Training")}`;
+    fields.push({ name: day, value: shiftVal, inline: true });
+    fields.push({ name: "\u3000\u3000\u3000" + day, value: trainVal, inline: true });
     fields.push({ name: "\u200b", value: "\u200b", inline: true });
   }
 
