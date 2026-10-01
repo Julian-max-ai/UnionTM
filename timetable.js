@@ -40,6 +40,17 @@ function buildDayField(sessions, weekMonday, day, type) {
   }).join("\n");
 }
 
+function buildDayField(sessions, weekMonday, day, type) {
+  const list = sessions.filter(s => s.day === day && s.type === type).sort((a, b) => a.hour - b.hour);
+  if (list.length === 0) return "—";
+  return list.map(s => {
+    const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
+    const host = s.host ? `<@${s.host}>` : "/";
+    const cohost = s.cohost ? `<@${s.cohost}>` : "/";
+    return `<t:${ts}:t> · ${host} & ${cohost}`;
+  }).join("\n");
+}
+
 function buildPublicDayValue(sessions, weekMonday, day) {
   const list = [
     ...sessions.filter(s => s.day === day && s.type === "Shift" && s.host).sort((a, b) => a.hour - b.hour).map(s => ({ ...s, emoji: "🔶" })),
@@ -60,10 +71,13 @@ function buildTimetableEmbed(sessions, weekMonday) {
   const wsTs = Math.floor(weekMonday.getTime() / 1000);
   const weTs = Math.floor(weekEnd.getTime() / 1000);
 
-  const fields = DAYS.map(day => {
+  const fields = [];
+  for (const day of DAYS) {
     const dayTs = Math.floor(getDateForWeekday(weekMonday, day).getTime() / 1000);
-    return { name: `${day} — <t:${dayTs}:d>`, value: buildPublicDayValue(sessions, weekMonday, day), inline: false };
-  });
+    fields.push({ name: `🔶 ${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Shift"), inline: true });
+    fields.push({ name: `🔷 ${day} — <t:${dayTs}:d>`, value: buildDayField(sessions, weekMonday, day, "Training"), inline: true });
+    fields.push({ name: "\u200b", value: "\u200b", inline: true });
+  }
 
   return {
     title: `📅 Weekly Timetable — Union™`,
