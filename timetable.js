@@ -1,5 +1,3 @@
-const db = require("./db");
-
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function getWeekStart(date) {
@@ -53,9 +51,9 @@ function buildTimetableEmbed(sessions, weekMonday) {
     } else {
       for (const s of shifts) {
         const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "No host";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "None";
-        shiftLines.push(`🟠 <t:${ts}:t> — Host: ${host} | Co-Host: ${cohost}`);
+        const host = s.host ? `<@${s.host}>` : "*Open*";
+        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
+        shiftLines.push(`🟠 <t:${ts}:t> — ${host} & ${cohost}`);
       }
     }
 
@@ -64,9 +62,9 @@ function buildTimetableEmbed(sessions, weekMonday) {
     } else {
       for (const s of trainings) {
         const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "No host";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "None";
-        trainingLines.push(`🟠 <t:${ts}:t> — Host: ${host} | Co-Host: ${cohost}`);
+        const host = s.host ? `<@${s.host}>` : "*Open*";
+        const cohost = s.cohost ? `<@${s.cohost}>` : "*Open*";
+        trainingLines.push(`🔷 <t:${ts}:t> — ${host} & ${cohost}`);
       }
     }
 
@@ -103,9 +101,9 @@ function buildManagementEmbed(sessions, weekMonday) {
     } else {
       for (const s of shifts) {
         const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "No host";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "None";
-        shiftLines.push(`🟠 <t:${ts}:f> — Host: ${host} | Co-Host: ${cohost}`);
+        const host = s.host ? `<@${s.host}>` : "❌ Open";
+        const cohost = s.cohost ? `<@${s.cohost}>` : "❌ Open";
+        shiftLines.push(`🟠 <t:${ts}:f>\nHost: ${host}\nCo-Host: ${cohost}`);
       }
     }
 
@@ -114,9 +112,9 @@ function buildManagementEmbed(sessions, weekMonday) {
     } else {
       for (const s of trainings) {
         const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-        const host = s.host ? `<@${s.host}>` : "No host";
-        const cohost = s.cohost ? `<@${s.cohost}>` : "None";
-        trainingLines.push(`🟠 <t:${ts}:f> — Host: ${host} | Co-Host: ${cohost}`);
+        const host = s.host ? `<@${s.host}>` : "❌ Open";
+        const cohost = s.cohost ? `<@${s.cohost}>` : "❌ Open";
+        trainingLines.push(`🔷 <t:${ts}:f>\nHost: ${host}\nCo-Host: ${cohost}`);
       }
     }
 
@@ -131,23 +129,17 @@ function buildManagementEmbed(sessions, weekMonday) {
       { name: "🔶 Shifts", value: shiftLines.join("\n") || "No sessions", inline: true },
       { name: "🔷 Trainings", value: trainingLines.join("\n") || "No sessions", inline: true }
     ],
-    footer: { text: "Union™ · Use buttons below to manage sessions" }
+    footer: { text: "Union™ · Use buttons below to sign up or remove yourself" }
   };
 }
 
+// Three buttons: Shift, Training, Remove
 const MANAGEMENT_BUTTONS = [
   {
     type: 1,
     components: [
-      { type: 2, label: "📋 Plan Shift", style: 3, customID: "mgmt_plan_shift" },
-      { type: 2, label: "📋 Plan Training", style: 1, customID: "mgmt_plan_training" }
-    ]
-  },
-  {
-    type: 1,
-    components: [
-      { type: 2, label: "Host", style: 3, customID: "mgmt_host" },
-      { type: 2, label: "Co-Host", style: 1, customID: "mgmt_cohost" },
+      { type: 2, label: "Shift", style: 3, customID: "mgmt_type_Shift" },
+      { type: 2, label: "Training", style: 1, customID: "mgmt_type_Training" },
       { type: 2, label: "Remove", style: 4, customID: "mgmt_remove" }
     ]
   }
