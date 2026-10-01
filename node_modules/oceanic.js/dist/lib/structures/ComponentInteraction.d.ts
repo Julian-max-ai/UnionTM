@@ -1,0 +1,180 @@
+/** @module ComponentInteraction */
+import Interaction from "./Interaction";
+import Message from "./Message";
+import type Guild from "./Guild";
+import Member from "./Member";
+import Permission from "./Permission";
+import type PrivateChannel from "./PrivateChannel";
+import User from "./User";
+import type Entitlement from "./Entitlement";
+import type TestEntitlement from "./TestEntitlement";
+import type * as Types from "../types/namespaced";
+import type Client from "../Client";
+import { ComponentTypes, type SelectMenuTypes, type InteractionTypes, type InteractionContextTypes } from "../Constants";
+import MessageInteractionResponse, { type InitialMessagedInteractionResponse, type FollowupMessageInteractionResponse } from "../util/interactions/MessageInteractionResponse";
+/** Represents a component interaction. */
+export default class ComponentInteraction<V extends ComponentTypes.BUTTON | SelectMenuTypes = ComponentTypes.BUTTON | SelectMenuTypes, T extends Types.Channels.AnyInteractionChannel | Types.Shared.Uncached = Types.Channels.AnyInteractionChannel | Types.Shared.Uncached> extends Interaction {
+    private _cachedChannel;
+    private _cachedGuild?;
+    /** The permissions the bot has in the channel this interaction was sent from. If in a dm/group dm, this will contain `ATTACH_FILES`, `EMBED_LINKS`, and `MENTION_EVERYONE`. In addition, `USE_EXTERNAL_EMOJIS` will be included for DMs with the app's bot user. */
+    appPermissions: Permission;
+    /** The maximum size limit per attachment. This will be 10MiB by default, unless the user that created this interaction has a Nitro subscription or the guild it was sent from has been boosted to level 2 or above. */
+    attachmentSizeLimit: number;
+    /** Details about the authorizing user or server for the installation(s) relevant to the interaction. See [Discord's docs](https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-object-authorizing-integration-owners-object) for more information. */
+    authorizingIntegrationOwners: Types.Interactions.AuthorizingIntegrationOwners;
+    /** The ID of the channel this interaction was sent from. */
+    channelID: string;
+    /** The context this interaction was sent from. */
+    context?: InteractionContextTypes;
+    /** The data associated with the interaction. */
+    data: V extends ComponentTypes.BUTTON ? Types.Interactions.MessageComponentButtonInteractionData : Types.Interactions.MessageComponentSelectMenuInteractionData;
+    /** The entitlements for the user that created this interaction, and the guild it was created in. */
+    entitlements: Array<Entitlement | TestEntitlement>;
+    /** The id of the guild this interaction was sent from, if applicable. */
+    guildID: T extends Types.Channels.AnyTextableGuildChannel ? string : string | null;
+    /** The preferred [locale](https://discord.com/developers/docs/reference#locales) of the guild this interaction was sent from, if applicable. */
+    guildLocale: T extends Types.Channels.AnyTextableGuildChannel ? string : string | undefined;
+    /** The partial guild this interaction was sent from, if applicable. */
+    guildPartial?: T extends Types.Channels.AnyTextableGuildChannel ? Types.Interactions.InteractionGuild : Types.Interactions.InteractionGuild | undefined;
+    /** The [locale](https://discord.com/developers/docs/reference#locales) of the invoking user. */
+    locale: string;
+    /** The member associated with the invoking user, if this interaction is sent from a guild. */
+    member: T extends Types.Channels.AnyTextableGuildChannel ? Member : Member | null;
+    /** The permissions of the member associated with the invoking user, if this interaction is sent from a guild. */
+    memberPermissions: T extends Types.Channels.AnyTextableGuildChannel ? Permission : Permission | null;
+    /** The message the interaction is from. */
+    message: Message<T>;
+    type: InteractionTypes.MESSAGE_COMPONENT;
+    /** The user that invoked this interaction. */
+    user: User;
+    constructor(data: Types.Interactions.RawMessageComponentInteraction, client: Client);
+    /** The channel this interaction was sent from. */
+    get channel(): T extends Types.Channels.AnyInteractionChannel ? T : undefined;
+    /** The guild this interaction was sent from, if applicable. This will throw an error if the guild is not cached. */
+    get guild(): T extends Types.Channels.AnyTextableGuildChannel ? Guild : Guild | null;
+    /**
+     * Create a followup message.
+     * Note that the returned class is not a message. It is a wrapper around the interaction response. The {@link MessageInteractionResponse#getMessage | getMessage} function can be used to get the message.
+     * @param options The options for creating the followup message.
+     */
+    createFollowup(options: Types.Interactions.InteractionContent): Promise<FollowupMessageInteractionResponse<this>>;
+    /**
+     * Create a followup message.
+     * Note that the returned class is not a message. It is a wrapper around the interaction response. The {@link MessageInteractionResponse#getMessage | getMessage} function can be used to get the message.
+     * @param content The content for creating the followup message.
+     * @param options The options for creating the followup message.
+     */
+    createFollowup(content: string, options?: Types.Interactions.InteractionContent): Promise<FollowupMessageInteractionResponse<this>>;
+    /**
+     * Create a message through this interaction. This is an initial response, and more than one initial response cannot be used. Use {@link ComponentInteraction#createFollowup | createFollowup}.
+     * Note that the returned class is not a message. It is a wrapper around the interaction response. The {@link MessageInteractionResponse#getMessage | getMessage} function can be used to get the message.
+     * @param options The options for the message.
+     */
+    createMessage(options: Types.Interactions.InteractionContent): Promise<InitialMessagedInteractionResponse<this>>;
+    /**
+     * Create a message through this interaction. This is an initial response, and more than one initial response cannot be used. Use {@link ComponentInteraction#createFollowup | createFollowup}.
+     * Note that the returned class is not a message. It is a wrapper around the interaction response. The {@link MessageInteractionResponse#getMessage | getMessage} function can be used to get the message.
+     * @param content The content for the message.
+     * @param options The options for the message.
+     */
+    createMessage(content: string, options?: Types.Interactions.InteractionContent): Promise<InitialMessagedInteractionResponse<this>>;
+    /**
+     * Respond to this interaction with a modal. This is an initial response, and more than one initial response cannot be used.
+     * @param options The options for the modal.
+     */
+    createModal(options: Types.Interactions.ModalData): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Defer this interaction with a `DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE` response. This is an initial response, and more than one initial response cannot be used.
+     * @param flags The [flags](https://discord.com/developers/docs/resources/channel#message-object-message-flags) to respond with.
+     */
+    defer(flags?: number): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Defer this interaction with a `DEFERRED_UPDATE_MESSAGE` response. This is an initial response, and more than one initial response cannot be used.
+     * @param flags The [flags](https://discord.com/developers/docs/resources/channel#message-object-message-flags) to respond with.
+     */
+    deferUpdate(flags?: number): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Delete a follow-up message.
+     * @param messageID The ID of the message.
+     */
+    deleteFollowup(messageID: string): Promise<void>;
+    /**
+     * Delete the original interaction response.
+     */
+    deleteOriginal(): Promise<void>;
+    /**
+     * Edit a followup message.
+     * @param messageID The ID of the message.
+     * @param options The options for editing the followup message.
+     */
+    editFollowup(messageID: string, options: Types.Interactions.EditInteractionContent): Promise<Message<T>>;
+    /**
+     * Edit a followup message.
+     * @param messageID The ID of the message.
+     * @param content The content for editing the followup message.
+     * @param options The options for editing the followup message.
+     */
+    editFollowup(messageID: string, content: string, options?: Types.Interactions.EditInteractionContent): Promise<Message<T>>;
+    /**
+     * Edit the original interaction response.
+     * @param options The options for editing the original message.
+     */
+    editOriginal(options: Types.Interactions.EditInteractionContent): Promise<Message<T>>;
+    /**
+     * Edit the original interaction response.
+     * @param content The content for editing the original message.
+     * @param options The options for editing the original message.
+     */
+    editOriginal(content: string, options?: Types.Interactions.EditInteractionContent): Promise<Message<T>>;
+    /**
+     * Edit the message this interaction is from. If this interaction has already been acknowledged, use {@link editOriginal}.
+     * @param options The options for editing the message.
+     */
+    editParent(options: Types.Interactions.InteractionContent): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Edit the message this interaction is from. If this interaction has already been acknowledged, use {@link editOriginal}.
+     * @param content The content for editing the message.
+     * @param options The options for editing the message.
+     */
+    editParent(content: string, options?: Types.Interactions.InteractionContent): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Get a followup message.
+     * @param messageID The ID of the message.
+     */
+    getFollowup(messageID: string): Promise<Message<T>>;
+    /**
+     * Get the original interaction response.
+     */
+    getOriginal(): Promise<Message<T>>;
+    /** Whether this interaction belongs to a cached guild channel. The only difference on using this method over a simple if statement is to easily update all the interaction properties typing definitions based on the channel it belongs to. */
+    inCachedGuildChannel(): this is ComponentInteraction<V, Types.Channels.AnyTextableGuildChannel>;
+    /** Whether this interaction belongs to a private channel (PrivateChannel or uncached). The only difference on using this method over a simple if statement is to easily update all the interaction properties typing definitions based on the channel it belongs to. */
+    inPrivateChannel(): this is ComponentInteraction<V, PrivateChannel | Types.Shared.Uncached>;
+    /** Whether this interaction is a button interaction. The only difference on using this method over a simple if statement is to easily update all the interaction properties typing definitions based on the component type. */
+    isButtonComponentInteraction(): this is ComponentInteraction<ComponentTypes.BUTTON, T>;
+    /** Whether this interaction is a select menu interaction. The only difference on using this method over a simple if statement is to easily update all the interaction properties typing definitions based on the component type. */
+    isSelectMenuComponentInteraction(): this is ComponentInteraction<SelectMenuTypes, T>;
+    /**
+     * Launch the bot's activity. This is an initial response, and more than one initial response cannot be used.
+     */
+    launchActivity(): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Show a "premium required" response to the user. This is an initial response, and more than one initial response cannot be used.
+     * @deprecated The {@link Constants~InteractionResponseTypes.PREMIUM_REQUIRED | PREMIUM_REQUIRED} interaction response type is now deprecated in favor of using {@link Types/Channels~PremiumButton | custom premium buttons}.
+     */
+    premiumRequired(): Promise<Types.Interactions.InteractionCallbackResponse<T>>;
+    /**
+     * Reply to this interaction. If the interaction hasn't been acknowledged, {@link ComponentInteraction#createMessage | createMessage} is used. Else, {@link ComponentInteraction#createFollowup | createFollowup} is used.
+     * Note that the returned class is not a message. It is a wrapper around the interaction response. The {@link MessageInteractionResponse#getMessage | getMessage} function can be used to get the message.
+     * @param options The options for the message.
+     */
+    reply(options: Types.Interactions.InteractionContent): Promise<MessageInteractionResponse<this>>;
+    /**
+     * Reply to this interaction. If the interaction hasn't been acknowledged, {@link ComponentInteraction#createMessage | createMessage} is used. Else, {@link ComponentInteraction#createFollowup | createFollowup} is used.
+     * Note that the returned class is not a message. It is a wrapper around the interaction response. The {@link MessageInteractionResponse#getMessage | getMessage} function can be used to get the message.
+     * @param content The content for the message.
+     * @param options The options for the message.
+     */
+    reply(content: string, options?: Types.Interactions.InteractionContent): Promise<MessageInteractionResponse<this>>;
+    toJSON(): Types.JSON.JSONComponentInteraction;
+}

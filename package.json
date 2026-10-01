@@ -1,0 +1,17 @@
+{
+  "name": "union-tm-bot",
+  "version": "1.0.0",
+  "description": "UnionTM Supermarket Chain — Organisation Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "type": "commonjs",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "oceanic.js": "^1.10.0"
+  }
+}

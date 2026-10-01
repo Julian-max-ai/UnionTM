@@ -1,0 +1,32 @@
+// Run once to register slash commands: node deploy-commands.js
+const commands = [
+  {
+    name: "setup",
+    description: "Open the Union™ bot setup panel (admin only)"
+  },
+  {
+    name: "plan",
+    description: "Plan a new shift or training session (management only)"
+  },
+  {
+    name: "cancel",
+    description: "Cancel a planned session (management only)"
+  }
+];
+
+const TOKEN = process.env.BOT_TOKEN;
+const APP_ID = process.env.APP_ID; // your Discord application ID
+const GUILD_ID = process.env.GUILD_ID; // optional: set for guild-specific commands (instant update)
+
+const url = GUILD_ID
+  ? `https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`
+  : `https://discord.com/api/v10/applications/${APP_ID}/commands`;
+
+fetch(url, {
+  method: "PUT",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bot ${TOKEN}`
+  },
+  body: JSON.stringify(commands)
+}).then(r => r.json()).then(console.log).catch(console.error);
