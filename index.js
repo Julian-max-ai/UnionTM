@@ -535,6 +535,9 @@ client.on("ready", async () => {
 
   setInterval(checkAnnouncements, 60 * 1000);
 
+  // Keep Turso connection warm to avoid cold-start latency
+  setInterval(() => db.getAllConfig().catch(() => {}), 4 * 60 * 1000);
+
   setInterval(async () => {
     const newMonday = getWeekStart(new Date());
     if (newMonday.getTime() !== currentWeekMonday.getTime()) {
