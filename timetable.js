@@ -78,7 +78,7 @@ function buildTimetableEmbed(sessions, weekMonday) {
     description: `<t:${wsTs}:d> – <t:${weTs}:d>`,
     color: 0xffa500,
     fields,
-    image: { url: "https://i.imgur.com/REPLACE_WITH_YOUR_LOGO.png" },
+    image: { url: "https://i.imgur.com/T3gfI1g.png" },
     footer: { text: "Union™ · Updated automatically" }
   };
 }
