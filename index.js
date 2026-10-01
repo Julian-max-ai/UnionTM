@@ -23,35 +23,19 @@ const sentAnnouncements = new Set();
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function apiReply(interaction, data) {
-  await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bot ${BOT_TOKEN}` },
-    body: JSON.stringify({ type: 4, data: { ...data, flags: 64 } })
-  });
+  await interaction.createMessage({ ...data, flags: 64 });
 }
 
 async function apiDefer(interaction) {
-  await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bot ${BOT_TOKEN}` },
-    body: JSON.stringify({ type: 5, data: { flags: 64 } })
-  });
+  await interaction.defer(64);
 }
 
 async function apiFollowup(interaction, data) {
-  await fetch(`https://discord.com/api/v10/webhooks/${interaction.applicationID}/${interaction.token}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bot ${BOT_TOKEN}` },
-    body: JSON.stringify({ ...data, flags: 64 })
-  });
+  await interaction.createFollowup({ ...data, flags: 64 });
 }
 
 async function apiModal(interaction, modal) {
-  await fetch(`https://discord.com/api/v10/interactions/${interaction.id}/${interaction.token}/callback`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bot ${BOT_TOKEN}` },
-    body: JSON.stringify({ type: 9, data: modal })
-  });
+  await interaction.createModal(modal);
 }
 
 async function getChannel(id) {
