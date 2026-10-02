@@ -53,18 +53,22 @@ async function getMemberRole(userId) {
 }
 
 async function setMemberRank(userId, roleId) {
-  // Need CSRF token first
   const csrfRes = await fetch(`https://auth.roblox.com/v2/logout`, {
     method: "POST",
     headers: { "Cookie": cookie() }
   });
   const csrf = csrfRes.headers.get("x-csrf-token");
+  if (!csrf) throw new Error("Failed to get CSRF token — check ROBLOX_COOKIE.");
 
-  await fetch(`${BASE}/groups/${GROUP_ID}/users/${userId}`, {
+  const res = await fetch(`${BASE}/groups/${GROUP_ID}/users/${userId}`, {
     method: "PATCH",
     headers: { "Cookie": cookie(), "Content-Type": "application/json", "X-CSRF-TOKEN": csrf },
     body: JSON.stringify({ roleId })
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`setMemberRank failed ${res.status}: ${text}`);
+  }
 }
 
 async function promoteUser(userId, callerRank) {
