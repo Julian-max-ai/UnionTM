@@ -1,7 +1,17 @@
 const commands = [
   { name: "setup", description: "Open the Union™ bot setup panel (admin only)" },
   { name: "cancel", description: "Cancel a planned session (management only)" },
-  { name: "reset", description: "Clear all sessions from both boards (management only)" }
+  { name: "reset", description: "Clear all sessions from both boards (management only)" },
+  {
+    name: "tag",
+    description: "Manage tags",
+    options: [
+      { type: 1, name: "create", description: "Create a new tag" },
+      { type: 1, name: "edit",   description: "Edit an existing tag",   options: [{ type: 3, name: "name", description: "Tag name", required: true }] },
+      { type: 1, name: "remove", description: "Remove a tag",           options: [{ type: 3, name: "name", description: "Tag name", required: true }] },
+      { type: 1, name: "list",   description: "List all tags" }
+    ]
+  }
 ];
 
 const TOKEN = process.env.BOT_TOKEN;

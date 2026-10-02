@@ -45,7 +45,7 @@ function buildPublicDayValue(sessions, weekMonday, day, type) {
   if (list.length === 0) return "—";
   return list.map(s => {
     const ts = getSessionTimestamp(weekMonday, s.day, s.hour);
-    return `<t:${ts}:t> · <@${s.host}> & ${s.cohost ? `<@${s.cohost}>` : "/"}`;
+    return `<t:${ts}:F>`;
   }).join("\n");
 }
 

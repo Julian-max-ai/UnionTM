@@ -19,6 +19,16 @@ async function init() {
     )
   `);
   await db.execute(`CREATE TABLE IF NOT EXISTS message_ids (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS tags (
+      name TEXT PRIMARY KEY,
+      prefix TEXT NOT NULL,
+      response TEXT NOT NULL,
+      embed INTEGER DEFAULT 0,
+      embed_color TEXT,
+      embed_title TEXT
+    )
+  `);
   // Ensure no duplicate sessions (type+day+hour must be unique)
   try { await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_unique ON sessions(type, day, hour)`); } catch {}
 }
@@ -123,4 +133,28 @@ async function clearAllSessions() {
   await db.execute("DELETE FROM sessions");
 }
 
-module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions };
+async function getTag(name) {
+  const res = await db.execute({ sql: "SELECT * FROM tags WHERE name = ?", args: [name] });
+  return res.rows[0] ?? null;
+}
+
+async function getAllTags() {
+  const res = await db.execute("SELECT * FROM tags ORDER BY name");
+  return res.rows;
+}
+
+async function upsertTag(name, prefix, response, embed, embedColor, embedTitle) {
+  await db.execute({
+    sql: `INSERT INTO tags (name, prefix, response, embed, embed_color, embed_title) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(name) DO UPDATE SET prefix=excluded.prefix, response=excluded.response,
+          embed=excluded.embed, embed_color=excluded.embed_color, embed_title=excluded.embed_title`,
+    args: [name, prefix, response, embed ? 1 : 0, embedColor ?? null, embedTitle ?? null]
+  });
+}
+
+async function deleteTag(name) {
+  const res = await db.execute({ sql: "DELETE FROM tags WHERE name = ?", args: [name] });
+  return res.rowsAffected > 0;
+}
+
+module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions, getTag, getAllTags, upsertTag, deleteTag };

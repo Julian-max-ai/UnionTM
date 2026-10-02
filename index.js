@@ -5,13 +5,14 @@ const { Client } = require("oceanic.js");
 const db = require("./db");
 const { DAYS, getWeekStart, getSessionTimestamp, buildTimetableEmbed, buildManagementEmbed, MANAGEMENT_BUTTONS } = require("./timetable");
 const { sendSetupPanel, updateSetupPanel, getConfigMeta, isAnnounceKey, buildAnnounceModeComponents, parseAnnounceValue } = require("./setup");
+const { buildTagMessage, buildTagCreateModal, buildTagListEmbed } = require("./tags");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) throw new Error("Missing BOT_TOKEN environment variable.");
 
 const client = new Client({
   auth: BOT_TOKEN.startsWith("Bot ") ? BOT_TOKEN : `Bot ${BOT_TOKEN}`,
-  gateway: { intents: ["GUILDS", "GUILD_MESSAGES"] }
+  gateway: { intents: ["GUILDS", "GUILD_MESSAGES", "MESSAGE_CONTENT"] }
 });
 
 let currentWeekMonday = getWeekStart(new Date());
@@ -220,33 +221,22 @@ function buildAnnouncementEmbed(rawValue, session, ts, isShift) {
   const parsed = parseAnnounceValue(rawValue);
   const host = session.host ? `<@${session.host}>` : "None";
   const cohost = session.cohost ? `<@${session.cohost}>` : "None";
+  const infoFields = [
+    { name: "🕐 Time",    value: `<t:${ts}:F>\n<t:${ts}:R>`, inline: false },
+    { name: "👤 Host",    value: host,   inline: false },
+    { name: "🤝 Co-Host", value: cohost, inline: false }
+  ];
 
-  // If stored as JSON embed, use it directly and inject host/cohost fields
-  if (parsed && (parsed.title || parsed.description || parsed.fields)) {
-    return {
-      ...parsed,
-      color: parsed.color ?? (isShift ? 0xffa500 : 0x5865f2),
-      fields: [
-        ...(parsed.fields ?? []),
-        { name: "Time", value: `<t:${ts}:F>`, inline: true },
-        { name: "Host", value: host, inline: true },
-        { name: "Co-Host", value: cohost, inline: true }
-      ],
-      footer: parsed.footer ?? { text: "Union™ · Session Announcement" }
-    };
-  }
-
-  // Simple text fallback
-  return {
+  const base = (parsed && (parsed.title || parsed.description || parsed.fields)) ? parsed : {
     title: `${isShift ? "🔶 Shift" : "🔷 Training"} Announcement — Union™`,
-    description: parsed?.description ?? rawValue ?? (isShift ? "A shift is starting!" : "A training is starting!"),
-    color: isShift ? 0xffa500 : 0x5865f2,
-    fields: [
-      { name: "Time", value: `<t:${ts}:F>`, inline: true },
-      { name: "Host", value: host, inline: true },
-      { name: "Co-Host", value: cohost, inline: true }
-    ],
-    footer: { text: "Union™ · Session Announcement" }
+    description: parsed?.description ?? rawValue ?? (isShift ? "A shift is starting!" : "A training is starting!")
+  };
+
+  return {
+    ...base,
+    color: base.color ?? (isShift ? 0xffa500 : 0x5865f2),
+    fields: [...infoFields, ...(base.fields ?? [])],
+    footer: base.footer ?? { text: "Union™ · Session Announcement" }
   };
 }
 
@@ -308,6 +298,32 @@ client.on("interactionCreate", async (interaction) => {
         setupPanels.set(interaction.channel.id, msg.id);
         await apiReply(interaction, { content: "Setup panel opened!" });
         return;
+      }
+
+      if (cmd === "tag") {
+        const sub = interaction.data.options.getSubCommand();
+        if (sub[0] === "create") {
+          await apiModal(interaction, buildTagCreateModal());
+          return;
+        }
+        if (sub[0] === "edit") {
+          const name = interaction.data.options.getString("name", true);
+          const tag = await db.getTag(name);
+          if (!tag) { await apiReply(interaction, { content: `❌ Tag \`${name}\` not found.` }); return; }
+          await apiModal(interaction, buildTagCreateModal(tag));
+          return;
+        }
+        if (sub[0] === "remove") {
+          const name = interaction.data.options.getString("name", true);
+          const ok = await db.deleteTag(name);
+          await apiReply(interaction, { content: ok ? `✅ Tag \`${name}\` removed.` : `❌ Tag \`${name}\` not found.` });
+          return;
+        }
+        if (sub[0] === "list") {
+          const tags = await db.getAllTags();
+          await apiReply(interaction, { embeds: [buildTagListEmbed(tags)] });
+          return;
+        }
       }
 
       if (cmd === "reset") {
@@ -539,6 +555,22 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
+      if (id === "tag_create_modal" || id.startsWith("tag_edit_modal_")) {
+        const name = getModalValue(interaction, "name").toLowerCase().replace(/\s+/g, "_");
+        const prefix = getModalValue(interaction, "prefix");
+        const response = getModalValue(interaction, "response");
+        const embedTitle = getModalValue(interaction, "embed_title");
+        const embedColor = getModalValue(interaction, "embed_color");
+        const useEmbed = embedTitle.length > 0;
+        if (!name || !prefix || !response) {
+          await apiFollowup(interaction, { content: "❌ Name, prefix and response are required." });
+          return;
+        }
+        await db.upsertTag(name, prefix, response, useEmbed, embedColor || null, embedTitle || null);
+        await apiFollowup(interaction, { content: `✅ Tag \`${prefix}${name}\` saved. Use it by typing \`${prefix}${name}\` in any channel.` });
+        return;
+      }
+
       if (id === "cancel_modal") {
         const type = getModalValue(interaction, "type");
         const day = getModalValue(interaction, "day");
@@ -560,6 +592,25 @@ client.on("interactionCreate", async (interaction) => {
       if (deferred) await interaction.createFollowup({ content: "An error occurred.", flags: 64 });
       else await interaction.createMessage({ content: "An error occurred.", flags: 64 });
     } catch {}
+  }
+});
+
+// ─── Tag Message Listener ────────────────────────────────────────────────────
+
+client.on("messageCreate", async (msg) => {
+  if (msg.author?.bot) return;
+  const content = msg.content?.trim();
+  if (!content) return;
+
+  const tags = await db.getAllTags();
+  for (const tag of tags) {
+    const trigger = `${tag.prefix}${tag.name}`;
+    if (content.toLowerCase() === trigger.toLowerCase()) {
+      try { await msg.delete(); } catch {}
+      const reply = buildTagMessage(tag);
+      await msg.channel.createMessage(reply);
+      return;
+    }
   }
 });
 

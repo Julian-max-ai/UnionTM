@@ -93,11 +93,7 @@ async function sendSetupPanel(channel, page = 0) {
 
 async function updateSetupPanel(channel, messageId, page = 0) {
   const cfg = await db.getAllConfig();
-  try {
-    await channel.editMessage(messageId, { embeds: [buildSetupEmbed(cfg, page)], components: buildSetupComponents(page) });
-  } catch {
-    return sendSetupPanel(channel, page);
-  }
+  await channel.editMessage(messageId, { embeds: [buildSetupEmbed(cfg, page)], components: buildSetupComponents(page) });
 }
 
 function getConfigMeta(key) {
