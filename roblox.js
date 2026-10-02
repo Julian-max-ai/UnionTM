@@ -84,9 +84,11 @@ async function promoteUser(userId, callerRank) {
   const current = await getMemberRole(userId);
   if (!current) throw new Error("User is not in the group.");
 
+  console.log(`[rbx] promoteUser: callerRank=${callerRank}, currentRank=${current.rank}, roles=`, JSON.stringify(roles.map(r => ({id:r.id,name:r.name,rank:r.rank}))));
+
   const currentIdx = roles.findIndex(r => r.rank === current.rank);
-  // Find next role above current but strictly below caller's rank
   const next = roles.slice(currentIdx + 1).find(r => r.rank < callerRank);
+  console.log(`[rbx] currentIdx=${currentIdx}, next=`, JSON.stringify(next ?? null));
   if (!next) throw new Error("No higher rank available below your rank.");
 
   await setMemberRank(userId, next.id);
