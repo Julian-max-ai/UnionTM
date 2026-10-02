@@ -41,15 +41,23 @@ async function getUserByName(username) {
 }
 
 async function getUserById(userId) {
-  const data = await fetch(`${USERS_BASE}/users/${userId}`).then(r => r.json());
-  if (data.errors) return null;
-  return data; // { id, name, displayName }
+  const res = await fetch(`${USERS_BASE}/users/${userId}`);
+  const data = await res.json();
+  console.log(`[rbx] getUserById(${userId}) status=${res.status}`, JSON.stringify(data).slice(0, 200));
+  if (!res.ok || data.errors) return null;
+  return data;
 }
 
 async function getMemberRole(userId) {
-  const data = await rbxFetch(`${BASE2}/users/${userId}/groups/roles`);
+  const res = await fetch(`${BASE2}/users/${userId}/groups/roles`, {
+    headers: { "Cookie": cookie() }
+  });
+  const data = await res.json();
+  console.log(`[rbx] getMemberRole(${userId}) status=${res.status} groups=${data.data?.length ?? "err"}`);
+  if (!res.ok) throw new Error(`getMemberRole failed ${res.status}: ${JSON.stringify(data)}`);
   const entry = data.data?.find(g => g.group.id === GROUP_ID);
-  return entry?.role ?? null; // { id, name, rank }
+  console.log(`[rbx] group entry:`, JSON.stringify(entry ?? null));
+  return entry?.role ?? null;
 }
 
 async function setMemberRank(userId, roleId) {
@@ -58,17 +66,17 @@ async function setMemberRank(userId, roleId) {
     headers: { "Cookie": cookie() }
   });
   const csrf = csrfRes.headers.get("x-csrf-token");
-  if (!csrf) throw new Error("Failed to get CSRF token — check ROBLOX_COOKIE.");
+  console.log(`[rbx] CSRF status=${csrfRes.status} token=${csrf ? csrf.slice(0,10)+"..." : "NULL"}`);
+  if (!csrf) throw new Error(`Failed to get CSRF token (status ${csrfRes.status}) — check ROBLOX_COOKIE.`);
 
   const res = await fetch(`${BASE}/groups/${GROUP_ID}/users/${userId}`, {
     method: "PATCH",
     headers: { "Cookie": cookie(), "Content-Type": "application/json", "X-CSRF-TOKEN": csrf },
     body: JSON.stringify({ roleId })
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`setMemberRank failed ${res.status}: ${text}`);
-  }
+  const text = await res.text().catch(() => "");
+  console.log(`[rbx] setMemberRank(${userId}, ${roleId}) status=${res.status} body=${text.slice(0, 200)}`);
+  if (!res.ok) throw new Error(`setMemberRank failed ${res.status}: ${text}`);
 }
 
 async function promoteUser(userId, callerRank) {
