@@ -99,7 +99,12 @@ async function sendSetupPanel(channel, page = 0) {
 
 async function updateSetupPanel(channel, messageId, page = 0) {
   const cfg = await db.getAllConfig();
-  await channel.editMessage(messageId, { embeds: [buildSetupEmbed(cfg, page)], components: buildSetupComponents(page) });
+  try {
+    await channel.editMessage(messageId, { embeds: [buildSetupEmbed(cfg, page)], components: buildSetupComponents(page) });
+  } catch (e) {
+    if (e.code === 10008) return sendSetupPanel(channel, page);
+    throw e;
+  }
 }
 
 function getConfigMeta(key) {
