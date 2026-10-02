@@ -3,7 +3,8 @@ const db = require("./db");
 // Keys that use the dual-mode announcement editor
 const ANNOUNCE_KEYS = new Set([
   "shift_warn1_msg", "shift_warn2_msg", "train_warn1_msg", "train_warn2_msg",
-  "shift_announce_msg", "train_announce_msg"
+  "shift_announce_msg", "train_announce_msg",
+  "promote_dm_msg", "demote_dm_msg"
 ]);
 
 const CONFIG_KEYS = [
@@ -11,7 +12,10 @@ const CONFIG_KEYS = [
   { key: "timetable_channel",      label: "Timetable Channel",              desc: "Channel ID for the public timetable" },
   { key: "shift_announce_channel", label: "Shift Announcement Channel",     desc: "Channel ID for shift announcements" },
   { key: "train_announce_channel", label: "Training Announcement Channel",  desc: "Channel ID for training announcements" },
-  { key: "management_role",        label: "Management Role(s)",             desc: "Role ID(s) that can plan/cancel — comma-separated" },
+  { key: "rank_log_channel",       label: "Rank Log Channel",               desc: "Channel ID for promote/demote logs" },
+  { key: "ownership_role",         label: "Ownership Role(s)",              desc: "Role ID(s) for setup/tag/reset access — comma-separated" },
+  { key: "rank_role",              label: "Rank Management Role(s)",        desc: "Role ID(s) that can promote/demote — comma-separated" },
+  { key: "management_role",        label: "Session Management Role(s)",     desc: "Role ID(s) that can plan/cancel sessions — comma-separated" },
   { key: "shift_ping_role",        label: "Shift Ping Role(s)",             desc: "Role ID(s) to ping for shifts — comma-separated" },
   { key: "train_ping_role",        label: "Training Ping Role(s)",          desc: "Role ID(s) to ping for trainings — comma-separated" },
   { key: "shift_ping_enabled",     label: "Shift Ping Enabled",             desc: "true or false" },
@@ -25,7 +29,9 @@ const CONFIG_KEYS = [
   { key: "train_warn1_msg",        label: "Training Warning 1 Message",     desc: "Announcement embed content", announce: true },
   { key: "train_warn2_msg",        label: "Training Warning 2 Message",     desc: "Announcement embed content", announce: true },
   { key: "shift_announce_msg",     label: "Shift Announcement Message",     desc: "Announcement embed content", announce: true },
-  { key: "train_announce_msg",     label: "Training Announcement Message",  desc: "Announcement embed content", announce: true }
+  { key: "train_announce_msg",     label: "Training Announcement Message",  desc: "Announcement embed content", announce: true },
+  { key: "promote_dm_msg",         label: "Promote DM Message",             desc: "DM sent to user on promotion", announce: true },
+  { key: "demote_dm_msg",          label: "Demote DM Message",              desc: "DM sent to user on demotion", announce: true }
 ];
 
 const PAGE_SIZE = 10;

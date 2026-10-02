@@ -1,7 +1,8 @@
 const commands = [
-  { name: "setup", description: "Open the Union™ bot setup panel (admin only)" },
-  { name: "cancel", description: "Cancel a planned session (management only)" },
-  { name: "reset", description: "Clear all sessions from both boards (management only)" },
+  { name: "setup",    description: "Open the Union™ bot setup panel (ownership only)" },
+  { name: "cancel",   description: "Cancel a planned session (management only)" },
+  { name: "reset",    description: "Clear all sessions from both boards (management only)" },
+  { name: "ranklink", description: "Link your Roblox account to your Discord account" },
   {
     name: "tag",
     description: "Manage tags",
@@ -10,6 +11,26 @@ const commands = [
       { type: 1, name: "edit",   description: "Edit an existing tag",   options: [{ type: 3, name: "name", description: "Tag name", required: true }] },
       { type: 1, name: "remove", description: "Remove a tag",           options: [{ type: 3, name: "name", description: "Tag name", required: true }] },
       { type: 1, name: "list",   description: "List all tags" }
+    ]
+  },
+  {
+    name: "promote",
+    description: "Promote a Roblox group member",
+    options: [
+      { type: 6, name: "user",           description: "Discord user to promote",    required: false },
+      { type: 3, name: "roblox_username", description: "Roblox username to promote", required: false },
+      { type: 3, name: "roblox_id",       description: "Roblox user ID to promote",  required: false },
+      { type: 3, name: "reason",          description: "Reason for promotion",       required: false }
+    ]
+  },
+  {
+    name: "demote",
+    description: "Demote a Roblox group member",
+    options: [
+      { type: 6, name: "user",           description: "Discord user to demote",    required: false },
+      { type: 3, name: "roblox_username", description: "Roblox username to demote", required: false },
+      { type: 3, name: "roblox_id",       description: "Roblox user ID to demote",  required: false },
+      { type: 3, name: "reason",          description: "Reason for demotion",       required: false }
     ]
   }
 ];

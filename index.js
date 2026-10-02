@@ -6,6 +6,7 @@ const db = require("./db");
 const { DAYS, getWeekStart, getSessionTimestamp, buildTimetableEmbed, buildManagementEmbed, MANAGEMENT_BUTTONS } = require("./timetable");
 const { sendSetupPanel, updateSetupPanel, getConfigMeta, isAnnounceKey, buildAnnounceModeComponents, parseAnnounceValue } = require("./setup");
 const { buildTagMessage, buildTagCreateModal, buildTagListEmbed } = require("./tags");
+const roblox = require("./roblox");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) throw new Error("Missing BOT_TOKEN environment variable.");
@@ -47,6 +48,18 @@ async function getChannel(id) {
 function hasManagementRole(member, cfg) {
   if (!cfg.management_role) return true;
   const roles = cfg.management_role.split(",").map(r => r.trim()).filter(Boolean);
+  return roles.some(r => member?.roles?.includes(r));
+}
+
+function hasOwnershipRole(member, cfg) {
+  if (!cfg.ownership_role) return true;
+  const roles = cfg.ownership_role.split(",").map(r => r.trim()).filter(Boolean);
+  return roles.some(r => member?.roles?.includes(r));
+}
+
+function hasRankRole(member, cfg) {
+  if (!cfg.rank_role) return true;
+  const roles = cfg.rank_role.split(",").map(r => r.trim()).filter(Boolean);
   return roles.some(r => member?.roles?.includes(r));
 }
 
@@ -294,6 +307,10 @@ client.on("interactionCreate", async (interaction) => {
       const cmd = interaction.data.name;
 
       if (cmd === "setup") {
+        if (!hasOwnershipRole(interaction.member, cfg)) {
+          await apiReply(interaction, { content: "❌ You don't have permission to use setup." });
+          return;
+        }
         const msg = await sendSetupPanel(interaction.channel);
         setupPanels.set(interaction.channel.id, msg.id);
         await apiReply(interaction, { content: "Setup panel opened!" });
@@ -301,6 +318,10 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (cmd === "tag") {
+        if (!hasOwnershipRole(interaction.member, cfg)) {
+          await apiReply(interaction, { content: "❌ You don't have permission to manage tags." });
+          return;
+        }
         const sub = interaction.data.options.getSubCommand();
         if (sub[0] === "create") {
           await apiModal(interaction, buildTagCreateModal());
@@ -327,8 +348,8 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (cmd === "reset") {
-        if (!hasManagementRole(interaction.member, cfg)) {
-          await apiReply(interaction, { content: "You don't have permission to reset sessions." });
+        if (!hasOwnershipRole(interaction.member, cfg) && !hasManagementRole(interaction.member, cfg)) {
+          await apiReply(interaction, { content: "❌ You don't have permission to reset sessions." });
           return;
         }
         await db.clearAllSessions();
@@ -338,9 +359,135 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
+      if (cmd === "ranklink") {
+        await apiModal(interaction, {
+          customID: "ranklink_modal",
+          title: "Link your Roblox Account",
+          components: [
+            { type: 1, components: [{ type: 4, customID: "roblox_input", label: "Roblox Username or User ID", style: 1, required: true, placeholder: "e.g. Builderman or 156" }] }
+          ]
+        });
+        return;
+      }
+
+      if (cmd === "promote" || cmd === "demote") {
+        if (!hasRankRole(interaction.member, cfg)) {
+          await apiReply(interaction, { content: "❌ You don't have permission to rank members." });
+          return;
+        }
+        await safeDefer();
+        const callerDiscordId = getUserId(interaction);
+        const callerLink = await db.getRobloxLink(callerDiscordId);
+        if (!callerLink) {
+          await apiFollowup(interaction, { content: "❌ You need to link your Roblox account first with `/ranklink`." });
+          return;
+        }
+        const callerRank = await roblox.getCallerRank(callerLink.roblox_id);
+        if (callerRank === 0) {
+          await apiFollowup(interaction, { content: "❌ Your linked Roblox account is not in the group." });
+          return;
+        }
+
+        // Resolve target
+        let targetRoblox = null;
+        const pingUser = interaction.data.options.getUser("user", false);
+        const robloxName = interaction.data.options.getString("roblox_username", false);
+        const robloxId = interaction.data.options.getString("roblox_id", false);
+
+        if (pingUser) {
+          const link = await db.getRobloxLink(pingUser.id);
+          if (!link) { await apiFollowup(interaction, { content: `❌ <@${pingUser.id}> has not linked their Roblox account.` }); return; }
+          targetRoblox = await roblox.getUserById(link.roblox_id);
+        } else if (robloxName) {
+          targetRoblox = await roblox.getUserByName(robloxName);
+        } else if (robloxId) {
+          targetRoblox = await roblox.getUserById(robloxId);
+        }
+
+        if (!targetRoblox) { await apiFollowup(interaction, { content: "❌ Roblox user not found." }); return; }
+
+        const reason = interaction.data.options.getString("reason", false) ?? "No reason provided";
+        let result;
+        try {
+          result = cmd === "promote"
+            ? await roblox.promoteUser(targetRoblox.id, callerRank)
+            : await roblox.demoteUser(targetRoblox.id, callerRank);
+        } catch (e) {
+          await apiFollowup(interaction, { content: `❌ ${e.message}` });
+          return;
+        }
+
+        const isPromote = cmd === "promote";
+        const actionWord = isPromote ? "Promoted" : "Demoted";
+        const color = isPromote ? 0x00cc66 : 0xff4444;
+
+        // Confirm to executor
+        await apiFollowup(interaction, {
+          embeds: [{
+            title: `${isPromote ? "⬆️" : "⬇️"} ${actionWord}: ${targetRoblox.name}`,
+            color,
+            fields: [
+              { name: "From", value: result.from.name, inline: true },
+              { name: "To",   value: result.to.name,   inline: true },
+              { name: "Reason", value: reason, inline: false }
+            ]
+          }]
+        });
+
+        // Log to rank log channel
+        const logCh = await getChannel(cfg.rank_log_channel);
+        if (logCh) {
+          await logCh.createMessage({
+            embeds: [{
+              title: `${isPromote ? "⬆️" : "⬇️"} ${actionWord} — Union™`,
+              color,
+              fields: [
+                { name: "Target",     value: `${targetRoblox.name} (${targetRoblox.id})`, inline: true },
+                { name: "Executor",   value: `<@${callerDiscordId}> (${callerLink.roblox_name})`, inline: true },
+                { name: "From Rank",  value: result.from.name, inline: true },
+                { name: "To Rank",    value: result.to.name,   inline: true },
+                { name: "Reason",     value: reason, inline: false }
+              ],
+              timestamp: new Date().toISOString(),
+              footer: { text: "Union™ · Rank Log" }
+            }]
+          });
+        }
+
+        // DM the target if they have a Discord link
+        const dmKey = isPromote ? cfg.promote_dm_msg : cfg.demote_dm_msg;
+        if (dmKey) {
+          const { parseAnnounceValue } = require("./setup");
+          const parsed = parseAnnounceValue(dmKey);
+          const dmEmbed = {
+            ...(parsed && (parsed.title || parsed.description) ? parsed : {
+              title: `${isPromote ? "⬆️ You have been promoted" : "⬇️ You have been demoted"} — Union™`,
+              description: parsed?.description ?? (isPromote ? "Congratulations on your promotion!" : "You have been demoted.")
+            }),
+            color: (parsed?.color) ?? color,
+            fields: [
+              { name: "From", value: result.from.name, inline: true },
+              { name: "To",   value: result.to.name,   inline: true },
+              { name: "Reason", value: reason, inline: false }
+            ],
+            footer: parsed?.footer ?? { text: "Union™" }
+          };
+          // Find Discord user linked to target roblox ID
+          try {
+            const allLinks = await db.getAllRobloxLinks();
+            const targetDiscordId = allLinks.find(l => l.roblox_id === String(targetRoblox.id))?.discord_id;
+            if (targetDiscordId) {
+              const dmChannel = await client.rest.users.createDM(targetDiscordId);
+              await client.rest.channels.createMessage(dmChannel.id, { embeds: [dmEmbed] });
+            }
+          } catch {}
+        }
+        return;
+      }
+
       if (cmd === "cancel") {
-        if (!hasManagementRole(interaction.member, cfg)) {
-          await apiReply(interaction, { content: "You don't have permission to cancel sessions." });
+        if (!hasManagementRole(interaction.member, cfg) && !hasOwnershipRole(interaction.member, cfg)) {
+          await apiReply(interaction, { content: "❌ You don't have permission to cancel sessions." });
           return;
         }
         await apiModal(interaction, {
@@ -552,6 +699,20 @@ client.on("interactionCreate", async (interaction) => {
         } catch {
           await apiFollowup(interaction, { content: "❌ Invalid JSON. Check your formatting and try again." });
         }
+        return;
+      }
+
+      if (id === "ranklink_modal") {
+        const input = getModalValue(interaction, "roblox_input");
+        let user = null;
+        if (/^\d+$/.test(input)) {
+          user = await roblox.getUserById(input);
+        } else {
+          user = await roblox.getUserByName(input);
+        }
+        if (!user) { await apiFollowup(interaction, { content: "❌ Roblox user not found." }); return; }
+        await db.setRobloxLink(getUserId(interaction), user.id, user.name);
+        await apiFollowup(interaction, { content: `✅ Linked to **${user.name}** (ID: ${user.id}).` });
         return;
       }
 

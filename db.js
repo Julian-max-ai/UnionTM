@@ -20,6 +20,13 @@ async function init() {
   `);
   await db.execute(`CREATE TABLE IF NOT EXISTS message_ids (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
   await db.execute(`
+    CREATE TABLE IF NOT EXISTS roblox_links (
+      discord_id TEXT PRIMARY KEY,
+      roblox_id TEXT NOT NULL,
+      roblox_name TEXT NOT NULL
+    )
+  `);
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS tags (
       name TEXT PRIMARY KEY,
       prefix TEXT NOT NULL,
@@ -157,4 +164,21 @@ async function deleteTag(name) {
   return res.rowsAffected > 0;
 }
 
-module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions, getTag, getAllTags, upsertTag, deleteTag };
+async function getRobloxLink(discordId) {
+  const res = await db.execute({ sql: "SELECT * FROM roblox_links WHERE discord_id = ?", args: [discordId] });
+  return res.rows[0] ?? null;
+}
+
+async function setRobloxLink(discordId, robloxId, robloxName) {
+  await db.execute({
+    sql: "INSERT INTO roblox_links (discord_id, roblox_id, roblox_name) VALUES (?, ?, ?) ON CONFLICT(discord_id) DO UPDATE SET roblox_id=excluded.roblox_id, roblox_name=excluded.roblox_name",
+    args: [discordId, String(robloxId), robloxName]
+  });
+}
+
+async function getAllRobloxLinks() {
+  const res = await db.execute("SELECT * FROM roblox_links");
+  return res.rows;
+}
+
+module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions, getTag, getAllTags, upsertTag, deleteTag, getRobloxLink, setRobloxLink, getAllRobloxLinks };
