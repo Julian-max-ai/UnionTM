@@ -126,6 +126,13 @@ async function demoteUser(userId, callerRank) {
   return { from: current, to: prev };
 }
 
+// ─── Profile description ─────────────────────────────────────────────────────
+async function getUserDescription(userId) {
+  const res = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+  const data = await res.json();
+  return data.description ?? null;
+}
+
 // ─── Bloxlink verification ────────────────────────────────────────────────────
 // Returns roblox user ID linked to a Discord user ID, or null if not linked
 async function getBloxlinkRobloxId(discordUserId) {
@@ -149,4 +156,4 @@ async function validateCookie() {
   }
 }
 
-module.exports = { getUserByName, getUserById, getMemberRole, getGroupRoles, promoteUser, demoteUser, getCallerRank, getBloxlinkRobloxId, validateCookie };
+module.exports = { getUserByName, getUserById, getMemberRole, getGroupRoles, promoteUser, demoteUser, getCallerRank, getBloxlinkRobloxId, validateCookie, getUserDescription };

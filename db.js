@@ -38,6 +38,15 @@ async function init() {
   `);
   // Ensure no duplicate sessions (type+day+hour must be unique)
   try { await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_unique ON sessions(type, day, hour)`); } catch {}
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS pending_verifications (
+      discord_id TEXT PRIMARY KEY,
+      roblox_id TEXT NOT NULL,
+      roblox_name TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    )
+  `);
 }
 
 async function getConfig(key) {
@@ -181,4 +190,27 @@ async function getAllRobloxLinks() {
   return res.rows;
 }
 
-module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions, getTag, getAllTags, upsertTag, deleteTag, getRobloxLink, setRobloxLink, getAllRobloxLinks };
+async function setPendingVerification(discordId, robloxId, robloxName, code) {
+  const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60; // 10 minutes
+  await db.execute({
+    sql: "INSERT INTO pending_verifications (discord_id, roblox_id, roblox_name, code, expires_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(discord_id) DO UPDATE SET roblox_id=excluded.roblox_id, roblox_name=excluded.roblox_name, code=excluded.code, expires_at=excluded.expires_at",
+    args: [discordId, String(robloxId), robloxName, code, expiresAt]
+  });
+}
+
+async function getPendingVerification(discordId) {
+  const res = await db.execute({ sql: "SELECT * FROM pending_verifications WHERE discord_id = ?", args: [discordId] });
+  const row = res.rows[0];
+  if (!row) return null;
+  if (row.expires_at < Math.floor(Date.now() / 1000)) {
+    await db.execute({ sql: "DELETE FROM pending_verifications WHERE discord_id = ?", args: [discordId] });
+    return null;
+  }
+  return row;
+}
+
+async function deletePendingVerification(discordId) {
+  await db.execute({ sql: "DELETE FROM pending_verifications WHERE discord_id = ?", args: [discordId] });
+}
+
+module.exports = { init, getConfig, setConfig, getAllConfig, getMessageId, setMessageId, getSessions, upsertSession, setSessionHost, setSessionCohost, removeUserFromSession, cancelSession, clearAllSessions, getTag, getAllTags, upsertTag, deleteTag, getRobloxLink, setRobloxLink, getAllRobloxLinks, setPendingVerification, getPendingVerification, deletePendingVerification };

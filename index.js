@@ -362,24 +362,38 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (cmd === "ranklink") {
-        const bloxId = await roblox.getBloxlinkRobloxId(getUserId(interaction));
-        if (bloxId) {
-          const user = await roblox.getUserById(bloxId);
-          if (user) {
-            await db.setRobloxLink(getUserId(interaction), user.id, user.name);
-            await apiReply(interaction, { content: `✅ Verified via Bloxlink — linked to **${user.name}** (ID: ${user.id}).` });
+        const sub = interaction.data.options?.getSubCommand()?.[0];
+
+        if (!sub || sub === "link") {
+          // Show modal to enter Roblox username/ID
+          await apiModal(interaction, {
+            customID: "ranklink_modal",
+            title: "Link your Roblox Account",
+            components: [
+              { type: 1, components: [{ type: 4, customID: "roblox_input", label: "Roblox Username or User ID", style: 1, required: true, placeholder: "e.g. Builderman or 156" }] }
+            ]
+          });
+          return;
+        }
+
+        if (sub === "verify") {
+          await safeDefer();
+          const discordId = getUserId(interaction);
+          const pending = await db.getPendingVerification(discordId);
+          if (!pending) {
+            await apiFollowup(interaction, { content: "❌ No pending verification. Use `/ranklink link` first." });
             return;
           }
+          const desc = await roblox.getUserDescription(pending.roblox_id);
+          if (!desc || !desc.includes(pending.code)) {
+            await apiFollowup(interaction, { content: `❌ Code **${pending.code}** not found in your Roblox profile description. Make sure you saved it, then try again.` });
+            return;
+          }
+          await db.setRobloxLink(discordId, pending.roblox_id, pending.roblox_name);
+          await db.deletePendingVerification(discordId);
+          await apiFollowup(interaction, { content: `✅ Verified! Linked to **${pending.roblox_name}** (ID: ${pending.roblox_id}). You can remove the code from your description now.` });
+          return;
         }
-        // Fallback: manual entry modal
-        await apiModal(interaction, {
-          customID: "ranklink_modal",
-          title: "Link your Roblox Account",
-          components: [
-            { type: 1, components: [{ type: 4, customID: "roblox_input", label: "Roblox Username or User ID", style: 1, required: true, placeholder: "e.g. Builderman or 156" }] }
-          ]
-        });
-        return;
       }
 
       if (cmd === "promote" || cmd === "demote") {
@@ -723,8 +737,16 @@ client.on("interactionCreate", async (interaction) => {
           user = await roblox.getUserByName(input);
         }
         if (!user) { await apiFollowup(interaction, { content: "❌ Roblox user not found." }); return; }
-        await db.setRobloxLink(getUserId(interaction), user.id, user.name);
-        await apiFollowup(interaction, { content: `✅ Linked to **${user.name}** (ID: ${user.id}).` });
+        const code = "UNION-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+        await db.setPendingVerification(getUserId(interaction), user.id, user.name, code);
+        await apiFollowup(interaction, {
+          embeds: [{
+            title: "🔗 Verify your Roblox Account",
+            description: `1. Go to your [Roblox profile](https://www.roblox.com/users/${user.id}/profile)\n2. Click **Edit Profile** → add this code anywhere in your **About** section:\n\n\`\`\`${code}\`\`\`\n3. Save, then run \`/ranklink verify\`\n\nCode expires in **10 minutes**.`,
+            color: 0x5865f2,
+            footer: { text: `Linking to: ${user.name} (${user.id})` }
+          }]
+        });
         return;
       }
 

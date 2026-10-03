@@ -2,7 +2,14 @@ const commands = [
   { name: "setup",    description: "Open the Union™ bot setup panel (ownership only)" },
   { name: "cancel",   description: "Cancel a planned session (management only)" },
   { name: "reset",    description: "Clear all sessions from both boards (management only)" },
-  { name: "ranklink", description: "Link your Roblox account to your Discord account" },
+  {
+    name: "ranklink",
+    description: "Link your Roblox account to your Discord account",
+    options: [
+      { type: 1, name: "link",   description: "Start linking your Roblox account" },
+      { type: 1, name: "verify", description: "Confirm verification after adding the code to your profile" }
+    ]
+  },
   {
     name: "tag",
     description: "Manage tags",
