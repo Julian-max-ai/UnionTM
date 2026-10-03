@@ -1,94 +1,111 @@
 const GROUP_ID = 125253116;
-const BASE = "https://groups.roblox.com/v1";
+const BASE  = "https://groups.roblox.com/v1";
 const BASE2 = "https://groups.roblox.com/v2";
-const USERS_BASE = "https://users.roblox.com/v1";
 
 function cookie() {
-  return `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`;
+  return `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE ?? ""}`;
 }
 
-async function rbxFetch(url, opts = {}) {
+// ─── CSRF token cache ─────────────────────────────────────────────────────────
+let _csrf = null;
+
+async function getCsrf() {
+  // Always fetch fresh — Roblox returns it on 403 from auth endpoints
+  const res = await fetch("https://auth.roblox.com/v2/logout", {
+    method: "POST",
+    headers: { "Cookie": cookie() }
+  });
+  const token = res.headers.get("x-csrf-token");
+  if (!token) {
+    throw new Error(`Cookie invalid or expired (CSRF status ${res.status}). Please update ROBLOX_COOKIE in Render.`);
+  }
+  _csrf = token;
+  return _csrf;
+}
+
+// ─── Authenticated fetch ──────────────────────────────────────────────────────
+async function rbxAuth(url, opts = {}) {
+  const csrf = await getCsrf();
   const res = await fetch(url, {
     ...opts,
-    headers: { "Cookie": cookie(), "Content-Type": "application/json", ...(opts.headers ?? {}) }
+    headers: {
+      "Cookie": cookie(),
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": csrf,
+      ...(opts.headers ?? {})
+    }
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Roblox API ${res.status}: ${text}`);
+    throw new Error(`Roblox ${res.status} on ${url}: ${text}`);
   }
-  return res.json();
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
 }
 
-// Get all roles in the group (cached per process lifetime, refreshed on demand)
+// ─── Group roles (cached 5 min) ───────────────────────────────────────────────
 let _rolesCache = null;
 let _rolesCacheTime = 0;
 
 async function getGroupRoles() {
   if (_rolesCache && Date.now() - _rolesCacheTime < 5 * 60 * 1000) return _rolesCache;
-  const data = await rbxFetch(`${BASE}/groups/${GROUP_ID}/roles`);
+  const res = await fetch(`${BASE}/groups/${GROUP_ID}/roles`);
+  const data = await res.json();
   _rolesCache = data.roles.sort((a, b) => a.rank - b.rank);
   _rolesCacheTime = Date.now();
   return _rolesCache;
 }
 
+// ─── User lookup ──────────────────────────────────────────────────────────────
 async function getUserByName(username) {
-  const data = await fetch("https://users.roblox.com/v1/usernames/users", {
+  const res = await fetch("https://users.roblox.com/v1/usernames/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ usernames: [username], excludeBannedUsers: false })
-  }).then(r => r.json());
-  return data.data?.[0] ?? null; // { id, name, displayName }
+  });
+  const data = await res.json();
+  return data.data?.[0] ?? null;
 }
 
 async function getUserById(userId) {
-  const res = await fetch(`${USERS_BASE}/users/${userId}`);
+  const res = await fetch(`https://users.roblox.com/v1/users/${userId}`);
   const data = await res.json();
-  console.log(`[rbx] getUserById(${userId}) status=${res.status}`, JSON.stringify(data).slice(0, 200));
   if (!res.ok || data.errors) return null;
   return data;
 }
 
+// ─── Member role ──────────────────────────────────────────────────────────────
 async function getMemberRole(userId) {
   const res = await fetch(`${BASE2}/users/${userId}/groups/roles`, {
     headers: { "Cookie": cookie() }
   });
   const data = await res.json();
-  console.log(`[rbx] getMemberRole(${userId}) status=${res.status} groups=${data.data?.length ?? "err"}`);
-  if (!res.ok) throw new Error(`getMemberRole failed ${res.status}: ${JSON.stringify(data)}`);
+  if (!res.ok) throw new Error(`getMemberRole failed ${res.status}`);
   const entry = data.data?.find(g => g.group.id === GROUP_ID);
-  console.log(`[rbx] group entry:`, JSON.stringify(entry ?? null));
   return entry?.role ?? null;
 }
 
-async function setMemberRank(userId, roleId) {
-  const csrfRes = await fetch(`https://auth.roblox.com/v2/logout`, {
-    method: "POST",
-    headers: { "Cookie": cookie() }
-  });
-  const csrf = csrfRes.headers.get("x-csrf-token");
-  console.log(`[rbx] CSRF status=${csrfRes.status} token=${csrf ? csrf.slice(0,10)+"..." : "NULL"}`);
-  if (!csrf) throw new Error(`Failed to get CSRF token (status ${csrfRes.status}) — check ROBLOX_COOKIE.`);
-
-  const res = await fetch(`${BASE}/groups/${GROUP_ID}/users/${userId}`, {
-    method: "PATCH",
-    headers: { "Cookie": cookie(), "Content-Type": "application/json", "X-CSRF-TOKEN": csrf },
-    body: JSON.stringify({ roleId })
-  });
-  const text = await res.text().catch(() => "");
-  console.log(`[rbx] setMemberRank(${userId}, ${roleId}) status=${res.status} body=${text.slice(0, 200)}`);
-  if (!res.ok) throw new Error(`setMemberRank failed ${res.status}: ${text}`);
+async function getCallerRank(robloxUserId) {
+  const role = await getMemberRole(robloxUserId);
+  return role?.rank ?? 0;
 }
 
+// ─── Set rank ─────────────────────────────────────────────────────────────────
+async function setMemberRank(userId, roleId) {
+  await rbxAuth(`${BASE}/groups/${GROUP_ID}/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ roleId })
+  });
+}
+
+// ─── Promote / Demote ─────────────────────────────────────────────────────────
 async function promoteUser(userId, callerRank) {
   const roles = await getGroupRoles();
   const current = await getMemberRole(userId);
   if (!current) throw new Error("User is not in the group.");
 
-  console.log(`[rbx] promoteUser: callerRank=${callerRank}, currentRank=${current.rank}, roles=`, JSON.stringify(roles.map(r => ({id:r.id,name:r.name,rank:r.rank}))));
-
   const currentIdx = roles.findIndex(r => r.rank === current.rank);
   const next = roles.slice(currentIdx + 1).find(r => r.rank < callerRank);
-  console.log(`[rbx] currentIdx=${currentIdx}, next=`, JSON.stringify(next ?? null));
   if (!next) throw new Error("No higher rank available below your rank.");
 
   await setMemberRank(userId, next.id);
@@ -109,9 +126,27 @@ async function demoteUser(userId, callerRank) {
   return { from: current, to: prev };
 }
 
-async function getCallerRank(robloxUserId) {
-  const role = await getMemberRole(robloxUserId);
-  return role?.rank ?? 0;
+// ─── Bloxlink verification ────────────────────────────────────────────────────
+// Returns roblox user ID linked to a Discord user ID, or null if not linked
+async function getBloxlinkRobloxId(discordUserId) {
+  const apiKey = process.env.BLOXLINK_API_KEY;
+  if (!apiKey) return null;
+  const res = await fetch(`https://api.blox.link/v4/public/discord-to-roblox/${discordUserId}`, {
+    headers: { "Authorization": apiKey }
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.robloxID ? String(data.robloxID) : null;
 }
 
-module.exports = { getUserByName, getUserById, getMemberRole, getGroupRoles, promoteUser, demoteUser, getCallerRank };
+// ─── Cookie health check (call on bot start) ──────────────────────────────────
+async function validateCookie() {
+  try {
+    await getCsrf();
+    console.log("[rbx] Cookie valid ✅");
+  } catch (e) {
+    console.error("[rbx] ❌", e.message);
+  }
+}
+
+module.exports = { getUserByName, getUserById, getMemberRole, getGroupRoles, promoteUser, demoteUser, getCallerRank, getBloxlinkRobloxId, validateCookie };

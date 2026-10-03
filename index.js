@@ -286,6 +286,8 @@ async function checkAnnouncements() {
       if (!sentAnnouncements.has(aKey) && now >= check.triggerTs && now < check.triggerTs + 90) {
         sentAnnouncements.add(aKey);
         const embed = buildAnnouncementEmbed(check.rawMsg ?? check.fallback, session, ts, isShift);
+        const imageUrl = isShift ? cfg.shift_announce_image : cfg.train_announce_image;
+        if (imageUrl) embed.image = { url: imageUrl };
         await announceChannel.createMessage({ content: pingContent || undefined, embeds: [embed] });
       }
     }
@@ -360,6 +362,16 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (cmd === "ranklink") {
+        const bloxId = await roblox.getBloxlinkRobloxId(getUserId(interaction));
+        if (bloxId) {
+          const user = await roblox.getUserById(bloxId);
+          if (user) {
+            await db.setRobloxLink(getUserId(interaction), user.id, user.name);
+            await apiReply(interaction, { content: `✅ Verified via Bloxlink — linked to **${user.name}** (ID: ${user.id}).` });
+            return;
+          }
+        }
+        // Fallback: manual entry modal
         await apiModal(interaction, {
           customID: "ranklink_modal",
           title: "Link your Roblox Account",
@@ -780,6 +792,7 @@ client.on("messageCreate", async (msg) => {
 client.on("ready", async () => {
   console.log(`Union™ Bot ready as ${client.user.tag}`);
   await db.init();
+  await roblox.validateCookie();
 
   const cfg = await db.getAllConfig();
 

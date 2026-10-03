@@ -13,6 +13,7 @@ const CONFIG_KEYS = [
   { key: "shift_announce_channel", label: "Shift Announcement Channel",     desc: "Channel ID for shift announcements" },
   { key: "train_announce_channel", label: "Training Announcement Channel",  desc: "Channel ID for training announcements" },
   { key: "rank_log_channel",       label: "Rank Log Channel",               desc: "Channel ID for promote/demote logs" },
+  { key: "bloxlink_api_key",       label: "Bloxlink API Key",               desc: "API key from blox.link/dashboard for account verification" },
   { key: "ownership_role",         label: "Ownership Role(s)",              desc: "Role ID(s) for setup/tag/reset access — comma-separated" },
   { key: "rank_role",              label: "Rank Management Role(s)",        desc: "Role ID(s) that can promote/demote — comma-separated" },
   { key: "management_role",        label: "Session Management Role(s)",     desc: "Role ID(s) that can plan/cancel sessions — comma-separated" },
@@ -30,6 +31,8 @@ const CONFIG_KEYS = [
   { key: "train_warn2_msg",        label: "Training Warning 2 Message",     desc: "Announcement embed content", announce: true },
   { key: "shift_announce_msg",     label: "Shift Announcement Message",     desc: "Announcement embed content", announce: true },
   { key: "train_announce_msg",     label: "Training Announcement Message",  desc: "Announcement embed content", announce: true },
+  { key: "shift_announce_image",   label: "Shift Announcement Image URL",   desc: "Image URL shown in shift announcement embed" },
+  { key: "train_announce_image",   label: "Training Announcement Image URL",desc: "Image URL shown in training announcement embed" },
   { key: "promote_dm_msg",         label: "Promote DM Message",             desc: "DM sent to user on promotion", announce: true },
   { key: "demote_dm_msg",          label: "Demote DM Message",              desc: "DM sent to user on demotion", announce: true }
 ];
